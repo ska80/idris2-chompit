@@ -10,9 +10,9 @@ import Data.SortedSet
 %default total
 
 -- x is outside the maze, a space is an empty passage, h is the ghost house.
-export
-rows : List String
-rows =
+-- Every layout keeps the house, tunnel, player spawn, and fruit position fixed.
+classicRows : List String
+classicRows =
   [ "############################"
   , "#............##............#"
   , "#.####.#####.##.#####.####.#"
@@ -46,6 +46,168 @@ rows =
   , "############################"
   ]
 
+-- Level 2: paired ladders and a broad lower crossing.
+crossroadsRows : List String
+crossroadsRows =
+  [ "############################"
+  , "#..........................#"
+  , "#.####.#####.##.#####.####.#"
+  , "#o####.#####.##.#####.####o#"
+  , "#............##............#"
+  , "#.####.#####.##.#####.####.#"
+  , "#.####.#####.##.#####.####.#"
+  , "#.####.#####.##.#####.####.#"
+  , "#............##............#"
+  , "######.##### ## #####.######"
+  , "xxxxx#.##### ## #####.#xxxxx"
+  , "xxxxx#.##          ##.#xxxxx"
+  , "xxxxx#.## ###--### ##.#xxxxx"
+  , "######.## #hhhhhh# ##.######"
+  , "      .   #hhhhhh#   .      "
+  , "######.## #hhhhhh# ##.######"
+  , "xxxxx#.## ######## ##.#xxxxx"
+  , "xxxxx#.##          ##.#xxxxx"
+  , "xxxxx#.## ######## ##.#xxxxx"
+  , "######.## ######## ##.######"
+  , "#..........................#"
+  , "#.####.#####.##.#####.####.#"
+  , "#.####.#####.##.#####.####.#"
+  , "#......##....  ....##......#"
+  , "#.####.##.########.##.####.#"
+  , "#.####.##.########.##.####.#"
+  , "#..........................#"
+  , "#o#######.##.##.##.#######o#"
+  , "#.#######.##.##.##.#######.#"
+  , "#............##............#"
+  , "############################"
+  ]
+
+-- Level 3: staggered crossings force more turns in the upper half.
+switchbackRows : List String
+switchbackRows =
+  [ "############################"
+  , "#............##............#"
+  , "#.####.##.##.##.##.##.####.#"
+  , "#o####.##.##.##.##.##.####o#"
+  , "#.........##....##.........#"
+  , "#.#######.########.#######.#"
+  , "#.#######.########.#######.#"
+  , "#.#######.########.#######.#"
+  , "#......##..........##......#"
+  , "######.##### ## #####.######"
+  , "xxxxx#.##### ## #####.#xxxxx"
+  , "xxxxx#.##          ##.#xxxxx"
+  , "xxxxx#.## ###--### ##.#xxxxx"
+  , "######.## #hhhhhh# ##.######"
+  , "      .   #hhhhhh#   .      "
+  , "######.## #hhhhhh# ##.######"
+  , "xxxxx#.## ######## ##.#xxxxx"
+  , "xxxxx#.##          ##.#xxxxx"
+  , "xxxxx#.## ######## ##.#xxxxx"
+  , "######.## ######## ##.######"
+  , "#............##............#"
+  , "#.####.#####.##.#####.####.#"
+  , "#.####.#####.##.#####.####.#"
+  , "#............  ............#"
+  , "#.####.##.########.##.####.#"
+  , "#.####.##.########.##.####.#"
+  , "#......##..........##......#"
+  , "#o#######.##.##.##.#######o#"
+  , "#.#######.##.##.##.#######.#"
+  , "#..........................#"
+  , "############################"
+  ]
+
+-- Level 4: long outer loops surround an inner crossing.
+courtyardRows : List String
+courtyardRows =
+  [ "############################"
+  , "#..........................#"
+  , "#.####.##############.####.#"
+  , "#o####.##############.####o#"
+  , "#.####................####.#"
+  , "#.####.#####.##.#####.####.#"
+  , "#.####.#####.##.#####.####.#"
+  , "#.####.#####.##.#####.####.#"
+  , "#..........................#"
+  , "######.##### ## #####.######"
+  , "xxxxx#.##### ## #####.#xxxxx"
+  , "xxxxx#.##          ##.#xxxxx"
+  , "xxxxx#.## ###--### ##.#xxxxx"
+  , "######.## #hhhhhh# ##.######"
+  , "      .   #hhhhhh#   .      "
+  , "######.## #hhhhhh# ##.######"
+  , "xxxxx#.## ######## ##.#xxxxx"
+  , "xxxxx#.##          ##.#xxxxx"
+  , "xxxxx#.## ######## ##.#xxxxx"
+  , "######.## ######## ##.######"
+  , "#..........................#"
+  , "#.####.#####.##.#####.####.#"
+  , "#.####.#####.##.#####.####.#"
+  , "#.........##.  .##.........#"
+  , "#.#######.##.##.##.#######.#"
+  , "#.#######.##.##.##.#######.#"
+  , "#..........................#"
+  , "#o####.##.########.##.####o#"
+  , "#.####.##.########.##.####.#"
+  , "#..........................#"
+  , "############################"
+  ]
+
+-- Level 5: narrow upper circuits and a dense set of lower junctions.
+circuitRows : List String
+circuitRows =
+  [ "############################"
+  , "#............##............#"
+  , "#.##.####.##.##.##.####.##.#"
+  , "#o##.####.##.##.##.####.##o#"
+  , "#.##.####.##.##.##.####.##.#"
+  , "#.........##....##.........#"
+  , "#.#######.########.#######.#"
+  , "#.#######.########.#######.#"
+  , "#..........................#"
+  , "######.##### ## #####.######"
+  , "xxxxx#.##### ## #####.#xxxxx"
+  , "xxxxx#.##          ##.#xxxxx"
+  , "xxxxx#.## ###--### ##.#xxxxx"
+  , "######.## #hhhhhh# ##.######"
+  , "      .   #hhhhhh#   .      "
+  , "######.## #hhhhhh# ##.######"
+  , "xxxxx#.## ######## ##.#xxxxx"
+  , "xxxxx#.##          ##.#xxxxx"
+  , "xxxxx#.## ######## ##.#xxxxx"
+  , "######.## ######## ##.######"
+  , "#............##............#"
+  , "#.####.##.##.##.##.##.####.#"
+  , "#.####.##.##.##.##.##.####.#"
+  , "#......##....  ....##......#"
+  , "#.#######.########.#######.#"
+  , "#.#######.########.#######.#"
+  , "#..........................#"
+  , "#o####.##.##.##.##.##.####o#"
+  , "#.####.##.##.##.##.##.####.#"
+  , "#............##............#"
+  , "############################"
+  ]
+
+export
+layoutCount : Int
+layoutCount = 5
+
+-- Keep increasing the difficulty level after the five layouts repeat.
+export
+layoutNumber : Int -> Int
+layoutNumber level = (max 1 level - 1) `mod` layoutCount + 1
+
+export
+rows : Int -> List String
+rows level = case layoutNumber level of
+  2 => crossroadsRows
+  3 => switchbackRows
+  4 => courtyardRows
+  5 => circuitRows
+  _ => classicRows
+
 public export
 key : Tile -> Int
 key (At x y) = y * 28 + x
@@ -65,6 +227,7 @@ neighbor tile direction =
 public export
 record Maze where
   constructor MkMaze
+  layoutId : Int
   cells : SortedMap Int Char
   pellets : SortedSet Int
   energizers : SortedSet Int
@@ -109,13 +272,13 @@ collect wanted ((index, cell) :: rest) =
   if cell == wanted then index :: collect wanted rest else collect wanted rest
 
 export
-buildMaze : Maze
-buildMaze =
-  let entries : List (Int, Char) = zip (map key allTiles) (concatMap unpack rows)
+buildMaze : Int -> Maze
+buildMaze level =
+  let entries : List (Int, Char) = zip (map key allTiles) (concatMap unpack (rows level))
       cells = Data.SortedMap.fromList entries
       dots = Data.SortedSet.fromList (collect '.' entries)
       powers = Data.SortedSet.fromList (collect 'o' entries)
-      maze = MkMaze cells dots powers empty
+      maze = MkMaze (layoutNumber level) cells dots powers empty
    in { homeDistances := homeMap maze } maze
 
 export

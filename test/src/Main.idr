@@ -23,6 +23,12 @@ advance (S n) game = advance n (step game)
 playing : Game
 playing = { phase := Playing, ghosts := [] } newGame
 
+freshLevel : Int -> Game
+freshLevel number =
+  let maze = buildMaze number
+   in { maze := maze, dots := maze.pellets, powers := maze.energizers,
+        level := number, remaining := pelletCount maze } playing
+
 atTile : Tile -> Game
 atTile tile = { player := MkActor tile North 0, wanted := North, stall := 1 } playing
 
@@ -64,7 +70,8 @@ validActor maze house actor = walkable maze house actor.tile &&
   (actor.progress == 0 || canMove maze house actor.tile actor.heading)
 
 validGame : Game -> Bool
-validGame game = validActor game.maze False game.player &&
+validGame game = game.maze.layoutId == layoutNumber game.level &&
+  validActor game.maze False game.player &&
   all (\ghost => validActor game.maze True ghost.actor) game.ghosts &&
   game.remaining == cast (length (Prelude.toList game.dots) + length (Prelude.toList game.powers))
 
@@ -84,8 +91,8 @@ returned (S fuel) game = case firstGhost game of
     InPen _ => ghost.actor.tile == At 13 14
     _ => returned fuel (step game)
 
-homeTest : Tile -> Bool
-homeTest tile = returned 1500 ({ ghosts := [MkGhost Red (MkActor tile East 0) Eyes False] } playing)
+homeTest : Game -> Tile -> Bool
+homeTest game tile = returned 1500 ({ ghosts := [MkGhost Red (MkActor tile East 0) Eyes False] } game)
 
 capture : Game -> Game
 capture game = step ({ player := MkActor (At 13 23) West 0, wanted := West,
@@ -96,13 +103,13 @@ samePosition a b = actorPosition a == actorPosition b
 
 mazeTests : List (String, Bool)
 mazeTests =
-  let maze = buildMaze
+  let maze = buildMaze 1
       reached = flood maze
       descend = \tile => tile == At 13 14 || not (walkable maze True tile) ||
         any (\d => case (lookup (key tile) maze.homeDistances, lookup (key (neighbor tile d)) maze.homeDistances) of
           (Just a, Just b) => b == a - 1
           _ => False) directions
-   in [ ("The maze has 31 rows and 28 columns", length rows == 31 && all (\row => length row == 28) rows)
+   in [ ("The maze has 31 rows and 28 columns", length (rows 1) == 31 && all (\row => length row == 28) (rows 1))
       , ("The maze has 240 dots and four power pellets", length (Prelude.toList maze.pellets) == 240 && length (Prelude.toList maze.energizers) == 4)
       , ("Every pellet is reachable from the player spawn", all (\i => contains i reached) (Prelude.toList maze.pellets ++ Prelude.toList maze.energizers))
       , ("The ghost house blocks the player", not (walkable maze False (At 13 14)) && not (walkable maze False (At 13 12)))
@@ -114,7 +121,7 @@ mazeTests =
 
 movementTests : List (String, Bool)
 movementTests =
-  let maze = buildMaze
+  let maze = buildMaze 1
       blocked = moveActor maze False (const North) 40 (MkActor (At 1 1) North 0)
       moving = MkActor (At 6 5) East 120
       reversed = reverseActor moving
@@ -162,7 +169,7 @@ ghostTests =
       , ("Revived ghosts resist the current power pellet", not (isFrightened ({ frightened := 360 } playing) ({ revived := True } red)))
       , ("A new power pellet removes revival immunity", maybe False (isFrightened power) (firstGhost (step ({ ghosts := [{ revived := True } red] } (atTile (At 1 3))))))
       , ("Eyes regain immunity inside the house", maybe False (\g => g.revived) (firstGhost (step ({ ghosts := [MkGhost Red (MkActor (At 13 14) North 0) Eyes False] } playing))))
-      , ("Eyes return from all maze corners and both tunnel ends", all homeTest [At 1 1, At 26 1, At 1 29, At 26 29, At 0 14, At 27 14])
+      , ("Eyes return from all maze corners and both tunnel ends", all (homeTest playing) [At 1 1, At 26 1, At 1 29, At 26 29, At 0 14, At 27 14])
       ]
 
 scoreTests : List (String, Bool)
@@ -218,7 +225,124 @@ stateTests =
       , ("The final life ends the game", isOver over && over.lives == 0)
       , ("Retry keeps the session high score", retried.highScore == 4500 && retried.score == 0 && retried.lives == 3)
       , ("The last pellet starts the level-clear animation", isClearing won && elem LevelWon won.sounds)
-      , ("The next level restores all pellets and keeps lives and score", next.level == 2 && next.remaining == 244 && next.lives == 2 && next.score == 1230 && isReady next)
+      , ("The next level restores all pellets and keeps lives and score", next.level == 2 && next.remaining == pelletCount (buildMaze 2) && next.lives == 2 && next.score == 1230 && isReady next)
+      ]
+
+sameMaze : Maze -> Maze -> Bool
+sameMaze a b = a.layoutId == b.layoutId &&
+  Prelude.toList a.pellets == Prelude.toList b.pellets &&
+  Prelude.toList a.energizers == Prelude.toList b.energizers &&
+  all (\tile => cellAt a tile == cellAt b tile &&
+                lookup (key tile) a.homeDistances == lookup (key tile) b.homeDistances) allTiles
+
+levelMazeTests : Int -> List (String, Bool)
+levelMazeTests number =
+  let maze = buildMaze number
+      reached = flood maze
+      label = "Layout " ++ show number ++ ": "
+      expected : Int = case number of 1 => 244; 2 => 258; 3 => 250; 4 => 252; _ => 260
+      passages = filter (walkable maze False) allTiles
+      descend = \tile => tile == At 13 14 || not (walkable maze True tile) ||
+        any (\d => case (lookup (key tile) maze.homeDistances, lookup (key (neighbor tile d)) maze.homeDistances) of
+          (Just a, Just b) => b == a - 1
+          _ => False) directions
+      border = filter (\t => (t.x == 0 || t.x == 27 || t.y == 0 || t.y == 30) && t.y /= 14) allTiles
+      anchors = [(At 13 23, ' '), (At 14 23, ' '), (At 13 11, ' '), (At 13 17, ' '),
+                 (At 13 12, '-'), (At 14 12, '-'), (At 11 14, 'h'), (At 13 14, 'h'),
+                 (At 15 14, 'h'), (At 0 14, ' '), (At 27 14, ' ')]
+   in [ (label ++ "31 rows and 28 columns",
+         length (rows number) == 31 && all (\row => length row == 28) (rows number))
+      , (label ++ "only supported cell symbols",
+         all (\c => elem c (unpack "#.ox h-")) (concatMap unpack (rows number)))
+      , (label ++ "horizontal symmetry",
+         all (\row => unpack row == reverse (unpack row)) (rows number))
+      , (label ++ "four power pellets and the expected dot count",
+         length (Prelude.toList maze.energizers) == 4 && pelletCount maze == expected)
+      , (label ++ "all passages and pellets are reachable",
+         all (\tile => contains (key tile) reached) passages &&
+         all (\i => contains i reached) (Prelude.toList maze.pellets ++ Prelude.toList maze.energizers))
+      , (label ++ "spawn, fruit, house, door, and tunnel positions stay legal",
+         all (\(tile, symbol) => cellAt maze tile == symbol) anchors)
+      , (label ++ "only the tunnel opens at the border",
+         all (\tile => not (walkable maze True tile)) border)
+      , (label ++ "no dead-end passages",
+         all (\tile => length (filter (canMove maze False tile) directions) >= 2) passages)
+      , (label ++ "every ghost passage has a route home", all descend allTiles)
+      , (label ++ "eyes return from corners and tunnel ends",
+         all (homeTest (freshLevel number)) [At 1 1, At 26 1, At 1 29, At 26 29, At 0 14, At 27 14])
+      , (label ++ "movement stays legal at every tile boundary",
+         all (\tile => all (\direction => validActor maze False
+           (moveActor maze False (const direction) 40 (MkActor tile direction 240))) directions) passages)
+      ]
+
+lastPellet : Int -> Bool -> Game
+lastPellet number power =
+  let game = freshLevel number
+      tile : Tile = if power then At 1 3 else At 1 1
+   in { player := MkActor tile North 0, wanted := North, stall := 1,
+        dots := if power then empty else singleton (key tile),
+        powers := if power then singleton (key tile) else empty,
+        remaining := 1, eaten := pelletCount game.maze - 1,
+        score := 14000, highScore := 20000, lives := 2, extraLife := True,
+        frightened := 12, chain := 3, modeTicks := 500,
+        fruitStage := 2, fruitTime := 300, popup := Just (At 13 17, 100, 90) } game
+
+levelTransitionTests : Int -> List (String, Bool)
+levelTransitionTests number =
+  let before = lastPellet number False
+      cleared = step before
+      flash = advance 119 cleared
+      loaded = step flash
+      started = advance 120 loaded
+      expected = buildMaze (number + 1)
+      power = step (lastPellet number True)
+      paused = advance 500 (command Pause cleared)
+      collected = step ({ player := MkActor (At 1 1) North 0, wanted := North, stall := 1 } (freshLevel number))
+      respawn = step ({ phase := Dying 1, lives := 2 } collected)
+      label = "Level " ++ show number ++ ": "
+   in [ (label ++ "the last dot starts completion",
+         isClearing cleared && cleared.remaining == 0 && cleared.score == 14010 && elem LevelWon cleared.sounds)
+      , (label ++ "the last power pellet also completes the level",
+         isClearing power && power.remaining == 0 && power.score == 14050)
+      , (label ++ "the old maze remains during the clear animation",
+         isClearing flash && flash.level == number && sameMaze flash.maze before.maze)
+      , (label ++ "the next maze loads automatically",
+         loaded.level == number + 1 && sameMaze loaded.maze expected && isReady loaded)
+      , (label ++ "the new maze restores its own pellets",
+         loaded.remaining == pelletCount expected && Prelude.toList loaded.dots == Prelude.toList expected.pellets &&
+         Prelude.toList loaded.powers == Prelude.toList expected.energizers)
+      , (label ++ "score, high score, lives, and bonus status carry over",
+         loaded.score == 14010 && loaded.highScore == 20000 && loaded.lives == 2 && loaded.extraLife)
+      , (label ++ "actors and round timers reset",
+         validGame loaded && loaded.player.tile == At 13 23 && loaded.player.progress == 0 &&
+         loaded.player.heading == West && loaded.wanted == West && length loaded.ghosts == 4 &&
+         loaded.eaten == 0 && loaded.frightened == 0 && loaded.chain == 0 && loaded.modeTicks == 0 &&
+         loaded.stall == 0 && loaded.freeze == 0 && loaded.fruitTime == 0 && loaded.fruitStage == 0 &&
+         isNothing loaded.popup)
+      , (label ++ "play resumes without another start command",
+         isPlaying started && samePosition started.player loaded.player && started.remaining == loaded.remaining)
+      , (label ++ "pause delays automatic progression",
+         paused.paused && isClearing paused && paused.level == number &&
+         (advance 120 (command Pause paused)).level == number + 1)
+      , (label ++ "death preserves the current maze and collected pellets",
+         isReady respawn && respawn.level == number && sameMaze respawn.maze collected.maze &&
+         respawn.remaining == collected.remaining && Prelude.toList respawn.dots == Prelude.toList collected.dots &&
+         Prelude.toList respawn.powers == Prelude.toList collected.powers)
+      ]
+
+levelTests : List (String, Bool)
+levelTests =
+  let wallShapes = map (\number => let maze = buildMaze number in
+                        map (\tile => cellAt maze tile == '#') allTiles) [1..layoutCount]
+      retried = command Start ({ phase := GameOver, highScore := 20000 } (freshLevel 5))
+   in concatMap levelMazeTests [1..layoutCount] ++ concatMap levelTransitionTests [1..layoutCount] ++
+      [ ("Five distinct wall layouts are available", layoutCount == 5 && length (nub wallShapes) == 5)
+      , ("Layouts cycle while difficulty levels keep increasing",
+         layoutNumber 6 == 1 && layoutNumber 10 == 5 && layoutNumber 11 == 1 && rows 6 == rows 1)
+      , ("Nonpositive layout requests use the first maze", rows 0 == rows 1 && rows (-1) == rows 1)
+      , ("Retry from a later maze returns to the first layout",
+         retried.level == 1 && sameMaze retried.maze (buildMaze 1) && retried.remaining == 244 &&
+         retried.highScore == 20000 && isReady retried)
       ]
 
 inputTests : List (String, Bool)
@@ -247,6 +371,6 @@ runTests ((name, passed) :: rest) = do
 
 main : IO ()
 main = do
-  let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++ inputTests
+  let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++ levelTests ++ inputTests
   runTests tests
   putStrLn (show (length tests) ++ " Chompit tests passed.")

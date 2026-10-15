@@ -1,6 +1,7 @@
 module Main
 
 import Chompit.Types
+import Chompit.Maze
 import Chompit.Game
 import Chompit.Input
 import Chompit.Render
@@ -44,6 +45,8 @@ record State where
   remainder : Double
   frames : Int
   heard : List Cue
+  -- Difficulty level and the layout that the renderer receives.
+  seenLevels : List (Int, Int)
 
 poll : Nat -> Context -> Game -> Bool -> IO (Either String (Maybe (Game, Bool)))
 poll Z context game muted = pure (Right (Just (game, muted)))
@@ -71,18 +74,24 @@ smokeInput 260 game = { ghosts := [MkGhost Red game.player Hunting False], stall
 smokeInput 300 game = { frightened := 0, ghosts := [MkGhost Pink game.player Hunting False], stall := 1 } game
 smokeInput 400 game = { phase := Playing, ghosts := [], remaining := 0 } game
 smokeInput 410 game = { phase := Clearing 1 } game
-smokeInput 430 game = { phase := GameOver, sounds := [FruitEaten, BonusLife] } game
+smokeInput 430 game = { phase := Clearing 1 } game
+smokeInput 450 game = { phase := Clearing 1 } game
+smokeInput 470 game = { phase := Clearing 1 } game
+smokeInput 490 game = { phase := Clearing 1 } game
+smokeInput 510 game = { phase := GameOver, sounds := [FruitEaten, BonusLife] } game
+smokeInput 530 game = command Start game
 smokeInput _ game = game
 
 smokePassed : State -> Bool
-smokePassed state = state.game.level == 2 && state.game.highScore >= 260 &&
+smokePassed state = state.game.level == 1 && state.game.maze.layoutId == 1 && state.game.highScore >= 260 &&
+  all (\level => elem (level, layoutNumber level) state.seenLevels) [1..6] &&
   all (\cue => elem cue state.heard) [BeginGame, ChompLow, Energize, GhostEaten, PlayerDied, LevelWon]
 
 loop : Context -> State -> IO (Either String ())
-loop context state = if context.smoke && state.frames >= 450 then
+loop context state = if context.smoke && state.frames >= 560 then
   if smokePassed state then do
     let mode : String = case context.audio of Nothing => "silent"; Just _ => "audio"
-    putStrLn ("Chompit " ++ mode ++ " smoke passed: 450 frames, movement, power pellet, ghost capture, death, level change, and pause.")
+    putStrLn ("Chompit " ++ mode ++ " smoke passed: 560 frames, five layouts, level cycling, retry, movement, capture, death, and pause.")
     pure (Right ())
   else pure (Left "The Chompit smoke test did not reach every required game state.")
   else do
@@ -101,7 +110,8 @@ loop context state = if context.smoke && state.frames >= 450 then
     if context.smoke then pure () else
       delayNS (if end - start < 16666667 then 16666667 - (end - start) else 0)
     let heard = if context.smoke then nub (game.sounds ++ state.heard) else []
-    loop context (MkState ({ sounds := [] } game) muted start remainder (state.frames + 1) heard)
+    let levels = if context.smoke then nub ((game.level, game.maze.layoutId) :: state.seenLevels) else []
+    loop context (MkState ({ sounds := [] } game) muted start remainder (state.frames + 1) heard levels)
 
 runWindow : Options -> Maybe SoundBank -> IO (Either String ())
 runWindow options audio = withWindow "Chompit | Idris 2 + SDL3" 672 864 resizable $ \window =>
@@ -111,11 +121,11 @@ runWindow options audio = withWindow "Chompit | Idris 2 + SDL3" 672 864 resizabl
     -- Timer pacing works with software rendering and monitors of any refresh rate.
     _ <- setRenderVSync renderer VSyncDisabled
     let game = newGame
-    withDisplay renderer game.maze $ \display => withEventBuffer $ \events => do
+    withDisplay renderer $ \display => withEventBuffer $ \events => do
       Right () <- startAudio audio game | Left err => pure (Left err)
       now <- ticksNS
       loop (MkContext window identifier display events audio options.smoke)
-           (MkState game False now 0 0 [])
+           (MkState game False now 0 0 [] [])
 
 main : IO ()
 main = do

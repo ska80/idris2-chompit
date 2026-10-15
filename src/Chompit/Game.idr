@@ -40,7 +40,7 @@ initialGhosts =
 export
 newGame : Game
 newGame =
-  let maze = buildMaze
+  let maze = buildMaze 1
    in MkGame maze maze.pellets maze.energizers (MkActor (At 13 23) West 0) West
              initialGhosts Title False 0 0 3 1 False (pelletCount maze) 0
              0 0 0 0 0 0 0 0 Nothing [] 42
@@ -50,6 +50,15 @@ restartActors phase game =
   { player := MkActor (At 13 23) West 0, wanted := West, ghosts := initialGhosts,
     phase := phase, paused := False, frightened := 0, chain := 0, modeTicks := 0,
     stall := 0, freeze := 0, fruitTime := 0, popup := Nothing } game
+
+nextLevel : Game -> Game
+nextLevel game =
+  let level = game.level + 1
+      maze = buildMaze level
+   in restartActors (Ready 120)
+        ({ maze := maze, dots := maze.pellets, powers := maze.energizers,
+           remaining := pelletCount maze, eaten := 0, level := level,
+           fruitStage := 0 } game)
 
 export
 reverseActor : Actor -> Actor
@@ -313,10 +322,7 @@ step game = if game.paused then game else
                    else if game.lives <= 1 then { phase := GameOver, lives := 0 } next
                    else restartActors (Ready 120) ({ lives := game.lives - 1 } next)
     Clearing ticks => if ticks > 1 then { phase := Clearing (ticks - 1) } next
-      else restartActors (Ready 120)
-        ({ dots := game.maze.pellets, powers := game.maze.energizers,
-           remaining := pelletCount game.maze, eaten := 0, level := game.level + 1,
-           fruitStage := 0 } next)
+                      else nextLevel next
 
 -- Drop excess wall-clock time after a stall. At most six fixed updates/frame.
 export

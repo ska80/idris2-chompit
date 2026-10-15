@@ -8,11 +8,11 @@ Idris 2 is indeed pacman-complete.
   <img src="assets/screenshot.png" width="48%" alt="Chompit with a blue maze, yellow player, four colored ghosts, pellets, score, and spare lives">
 </p>
 
-Chompit uses the classic 28 × 31 maze, arcade palette, wraparound tunnel, and four ghost
-personalities.  The game renders its own pixel art and bitmap font.  The repository includes
-original arcade-style effects, a title tune, and short musical cues in `assets/sounds/`.  A Python
-script can regenerate these files.  No ROM, sampled arcade audio, external font, or downloaded asset
-is required.
+Chompit has five 28 × 31 mazes: the classic layout and four original layouts.  It keeps the arcade
+palette, wraparound tunnel, and four ghost personalities.  The game renders its own pixel art and
+bitmap font.  The repository includes original arcade-style effects, a title tune, and short musical
+cues in `assets/sounds/`.  A Python script can regenerate these files.  No ROM, sampled arcade
+audio, external font, or downloaded asset is required.
 
 This is a playable first version, not a cycle-accurate reproduction.  Ghost release timers and some
 level rules differ from the arcade game.  The generated melodies and waveforms are original, not
@@ -77,10 +77,11 @@ Movement continues without a held key.  Turns wait until the next legal junction
 between junctions.  The game pauses when its window loses keyboard focus.  Press P to resume after
 you return.  The resizable window preserves the 224 × 288 display proportions.
 
-Each maze contains 240 dots worth 10 points and four power pellets worth 50 points.  Power pellets
-turn hunting ghosts blue for a limited time.  Consecutive captures score 200, 400, 800, then 1,600
-points.  Captured eyes return to the house and regain their bodies.  Revived ghosts resist the
-current power pellet, but another power pellet removes that protection.
+Dots score 10 points, and each maze has four power pellets worth 50 points.  The first maze has 240
+dots, with different counts in the other layouts.  Power pellets turn hunting ghosts blue for a
+limited time.  Consecutive captures score 200, 400, 800, then 1,600 points.  Captured eyes return to
+the house and regain their bodies.  Revived ghosts resist the current power pellet, but another
+power pellet removes that protection.
 
 Red targets the player, and pink targets four tiles ahead.  Cyan uses the player's direction and
 red's position.  Orange chases from a distance and retreats when it gets close.  Ghosts alternate
@@ -88,9 +89,13 @@ between chase and scatter, a mode that targets their home corners.  The pink and
 the arcade game's upward look-ahead quirk.
 
 You start with three lives and earn one extra life at 10,000 points.  Bonus fruit appears after 70
-and 170 pellets, and disappears after ten seconds.  Its value increases with the level.  Clearing
-the maze starts another level with higher speed and a new set of pellets.  The high score survives
-retries in the same process, but is not saved to disk.
+and 170 pellets, and disappears after ten seconds.  Its value increases with the level.  The high
+score survives retries in the same process, but is not saved to disk.
+
+Collect every dot and power pellet to complete a level.  After the completion animation, the game
+loads the next maze automatically and starts a short ready countdown.  Your score and lives carry
+over.  After level five, the layouts repeat from the first maze.  The level number keeps rising, and
+difficulty does not reset.  A retry after game over starts at level one.
 
 ## Tests and source
 
@@ -104,11 +109,13 @@ The test package is `test/chompit-test.ipkg`, and its Idris and Python sources a
 The Idris tests depend on the `chompit` package and build into `test/build/`.  `make clean` removes
 both the game and test build output.
 
-The suite tests maze reachability, movement, ghost targets, collisions, scoring, timers, input
-mapping, and state changes.  It also compares bundled WAV files with regenerated audio and runs 450
-scripted frames with dummy SDL devices.  A second run tests the silent path.  The smoke runs
-exercise drawing and audio calls, but do not assess sound quality on speakers.  Run `make smoke` for
-those runs alone.
+The suite tests all five mazes, movement, ghost targets, collisions, scoring, timers, input mapping,
+and automatic level changes.  It also compares bundled WAV files with regenerated audio.
+
+A smoke test runs a short scripted game with dummy SDL devices.  The audio and silent runs each draw
+560 frames, covering all five layouts, cycling after level five, and retry.  These runs exercise
+drawing and audio calls, but do not assess sound quality on speakers.  Run `make smoke` for those
+runs alone.
 
 The simulation does not use SDL or perform I/O.  Rendering, input, and audio stay outside it.  See
 [docs/design.md](docs/design.md) for module boundaries and resource cleanup.  Project code and

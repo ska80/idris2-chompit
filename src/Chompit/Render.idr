@@ -29,12 +29,18 @@ record Batch where
   color : Color
   rects : List FRect
 
+record WallLayer where
+  constructor MkWallLayer
+  layoutId : Int
+  buffer : RectBuffer
+  count : Bits32
+
 export
 record Display where
   constructor MkDisplay
   renderer : Renderer
-  walls, scratch : RectBuffer
-  wallCount : Bits32
+  walls : List WallLayer
+  scratch : RectBuffer
 
 color : Renderer -> Color -> IO Bool
 color renderer (MkColor r g b a) = setDrawColor renderer r g b a
@@ -68,13 +74,21 @@ wallRects maze tile = if cellAt maze tile /= '#' then [] else
                               any (\offset => not (wallPixel maze (plus p offset))) ring) pixels
    in map (\p => MkFRect (cast p.x) (cast (p.y + 24)) 1 1) outline
 
+-- Allocate and upload every layout before the loop. Level changes select an
+-- existing buffer, including the return to layout one after level five.
+withWallLayers : List Int -> (List WallLayer -> IO (Either String a)) -> IO (Either String a)
+withWallLayers [] action = action []
+withWallLayers (number :: rest) action =
+  let maze = buildMaze number
+      walls = concatMap (wallRects maze) allTiles in
+  withRectBuffer (cast (max 1 (length walls))) $ \buffer => do
+    True <- upload buffer 0 walls | False => Left <$> getError
+    withWallLayers rest $ \layers => action (MkWallLayer number buffer (cast (length walls)) :: layers)
+
 export
-withDisplay : Renderer -> Maze -> (Display -> IO (Either String a)) -> IO (Either String a)
-withDisplay renderer maze action =
-  let walls = concatMap (wallRects maze) allTiles in
-  withRectBuffer (cast (max 1 (length walls))) $ \wallBuffer => withRectBuffer 4096 $ \scratch => do
-    True <- upload wallBuffer 0 walls | False => Left <$> getError
-    action (MkDisplay renderer wallBuffer scratch (cast (length walls)))
+withDisplay : Renderer -> (Display -> IO (Either String a)) -> IO (Either String a)
+withDisplay renderer action = withWallLayers [1..layoutCount] $ \walls =>
+  withRectBuffer 4096 $ \scratch => action (MkDisplay renderer walls scratch)
 
 textRects : Double -> Double -> Double -> String -> List FRect
 textRects x y scale text = concatMap letter (zip [0 .. cast (length text)] (unpack text))
@@ -233,8 +247,10 @@ render display game muted = do
   let wallColor = case game.phase of
         Clearing ticks => if ticks `mod` 30 < 15 then white else blue
         _ => blue
+  let Just layer = find (\layer => layer.layoutId == game.maze.layoutId) display.walls
+    | Nothing => pure (Left "The maze wall buffer is missing. Restart Chompit.")
   True <- color display.renderer wallColor | False => Left <$> getError
-  True <- fillRects display.renderer display.walls display.wallCount | False => Left <$> getError
+  True <- fillRects display.renderer layer.buffer layer.count | False => Left <$> getError
   True <- paint display (foodPicture game ++ actorsPicture game ++ hud game muted ++ overlay game)
     | False => Left <$> getError
   True <- present display.renderer | False => Left <$> getError
