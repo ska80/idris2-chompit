@@ -2,7 +2,7 @@
 type = "local"
 path = "."
 ipkg = "chompit.ipkg"
-test = "chompit-test.ipkg"
+test = "test/chompit-test.ipkg"
 
 [custom.all.sdl3]
 type = "local"

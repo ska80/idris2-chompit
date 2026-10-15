@@ -1,4 +1,4 @@
-module TestMain
+module Main
 
 import Chompit.Types
 import Chompit.Maze

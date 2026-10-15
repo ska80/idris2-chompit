@@ -98,6 +98,10 @@ Run the full local suite:
 make test
 ```
 
+The test package is `test/chompit-test.ipkg`, and its Idris and Python sources are in `test/src/`.
+The Idris tests depend on the `chompit` package and build into `test/build/`.  `make clean` removes
+both the game and test build output.
+
 The suite tests maze reachability, movement, ghost targets, collisions, scoring, timers, input
 mapping, and state changes.  It also compares bundled WAV files with regenerated audio and runs 450
 scripted frames with dummy SDL devices.  A second run tests the silent path.  The smoke runs

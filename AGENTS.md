@@ -7,7 +7,7 @@ repository root to set native library paths and find bundled assets.  Keep the l
 Keep game rules in the pure modules `Chompit.Types`, `Chompit.Maze`, and `Chompit.Game`.  Keep SDL
 handles and I/O out of those modules.  Preserve their totality requirements and add tests for rule
 changes.  Keep native buffers and audio tracks outside the frame loop.  Follow the sibling library's
-scoped resource contract.
+scoped resource contract.  Keep test sources in `test/src/`.
 
 Regenerate audio with `make assets` rather than adding downloaded sounds.  Track the WAV files in
 `assets/sounds/` with their generator, `tools/generate_audio.py`.  Do not regenerate or remove

@@ -35,9 +35,9 @@ run: all
 	./build/exec/chompit $(ARGS)
 
 test: all
-	$(PACK_CHEZ) build chompit-test.ipkg
-	./build/test/exec/chompit-test
-	$(PYTHON) tools/test_audio.py
+	$(PACK_CHEZ) build test/chompit-test.ipkg
+	./test/build/exec/chompit-test
+	$(PYTHON) test/src/test_audio.py
 	$(MAKE) smoke
 
 smoke: all
@@ -46,4 +46,4 @@ smoke: all
 
 clean:
 	$(PACK) --no-prompt clean chompit.ipkg
-	$(PACK) --no-prompt clean chompit-test.ipkg
+	$(PACK) --no-prompt clean test/chompit-test.ipkg

@@ -1,0 +1,11 @@
+package chompit-test
+
+version = 0.1.0
+
+depends = chompit
+
+sourcedir = "src"
+
+main = Main
+
+executable = chompit-test

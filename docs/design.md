@@ -16,9 +16,9 @@ terminate.  This does not prove that the game rules match the arcade machine.
 | `src/Chompit/Render.idr` | Wall outlines, sprites, text, and rectangle batches |
 | `src/Chompit/Audio.idr` | Reusable mixer tracks, sound cues, loops, pause, and mute |
 | `src/Main.idr` | Options, resource scopes, event polling, frame timing, and smoke scenarios |
-| `src/TestMain.idr` | Simulation and input tests |
+| `test/src/Main.idr` | Simulation and input tests |
 | `tools/generate_audio.py` | Deterministic synthesis of twelve WAV files |
-| `tools/test_audio.py` | Audio format, amplitude, endpoints, and reproducibility tests |
+| `test/src/test_audio.py` | Audio format, amplitude, endpoints, and reproducibility tests |
 
 ## Simulation and movement
 

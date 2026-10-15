@@ -1,0 +1,6 @@
+# ignore files
+
+/build/
+
+__pycache__/
+*.pyc
