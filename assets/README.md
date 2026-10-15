@@ -2,7 +2,8 @@
 
 Chompit draws its sprites, wall outlines, and bitmap font in Idris.  The palette uses black, blue,
 yellow, red, pink, cyan, orange, white, and pale pink pellets.  The graphics do not require external
-image or font files.  `screenshot.png` shows an actual software-rendered game frame.
+image or font files.  `menu.png` shows the starting menu, and `screenshot.png` shows gameplay.  Both
+images show actual software-rendered frames.
 
 The twelve original audio files in `assets/sounds/` are tracked in Git.  `tools/generate_audio.py`
 recreates them with only the Python standard library.  Each file contains mono, signed 16-bit PCM at

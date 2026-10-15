@@ -4,7 +4,8 @@ A playable maze chase written in Idris 2 with [idris2-sdl3](https://github.com/s
 Idris 2 is indeed pacman-complete.
 
 <p align="center">
-  <img src="assets/screenshot.png" width="448" alt="Chompit with a blue maze, yellow player, four colored ghosts, pellets, score, and spare lives">
+  <img src="assets/menu.png" width="48%" alt="Chompit starting menu with the title, four ghosts, and keyboard controls">
+  <img src="assets/screenshot.png" width="48%" alt="Chompit with a blue maze, yellow player, four colored ghosts, pellets, score, and spare lives">
 </p>
 
 Chompit uses the classic 28 × 31 maze, arcade palette, wraparound tunnel, and four ghost
