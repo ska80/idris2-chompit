@@ -1,0 +1,8 @@
+# ignore files
+
+/.agent-shell/
+
+/build/
+
+*.ttc
+*.ttm

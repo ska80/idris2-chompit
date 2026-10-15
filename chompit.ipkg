@@ -1,0 +1,13 @@
+package chompit
+
+version = 0.1.0
+authors = "Chompit contributors"
+brief = "An arcade maze chase in Idris 2 and SDL3"
+license = "MIT"
+
+depends = sdl3, sdl3-mixer
+sourcedir = "src"
+modules = Chompit.Types, Chompit.Maze, Chompit.Game, Chompit.Input,
+          Chompit.Font, Chompit.Render, Chompit.Audio
+main = Main
+executable = chompit

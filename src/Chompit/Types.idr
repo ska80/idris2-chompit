@@ -1,0 +1,106 @@
+module Chompit.Types
+
+%default total
+
+public export
+record Tile where
+  constructor At
+  x, y : Int
+
+public export
+Eq Tile where
+  (At x y) == (At u v) = x == u && y == v
+
+public export
+data Direction = North | West | South | East
+
+public export
+Eq Direction where
+  North == North = True
+  West == West = True
+  South == South = True
+  East == East = True
+  _ == _ = False
+
+public export
+directions : List Direction
+directions = [North, West, South, East]
+
+public export
+opposite : Direction -> Direction
+opposite North = South
+opposite West = East
+opposite South = North
+opposite East = West
+
+public export
+delta : Direction -> Tile
+delta North = At 0 (-1)
+delta West = At (-1) 0
+delta South = At 0 1
+delta East = At 1 0
+
+public export
+plus : Tile -> Tile -> Tile
+plus (At x y) (At u v) = At (x + u) (y + v)
+
+public export
+scaled : Int -> Tile -> Tile
+scaled n (At x y) = At (n * x) (n * y)
+
+public export
+distanceSquared : Tile -> Tile -> Int
+distanceSquared (At x y) (At u v) = (x - u) * (x - u) + (y - v) * (y - v)
+
+public export
+record Actor where
+  constructor MkActor
+  tile : Tile
+  heading : Direction
+  -- Distance from this tile's center toward the next center, in 1/256 tiles.
+  progress : Int
+
+public export
+data Identity = Red | Pink | Cyan | Orange
+
+public export
+Eq Identity where
+  Red == Red = True
+  Pink == Pink = True
+  Cyan == Cyan = True
+  Orange == Orange = True
+  _ == _ = False
+
+public export
+data GhostState = Hunting | InPen Int | Leaving | Eyes
+
+public export
+record Ghost where
+  constructor MkGhost
+  identity : Identity
+  actor : Actor
+  state : GhostState
+  revived : Bool
+
+public export
+data Phase = Title | Ready Int | Playing | Dying Int | Clearing Int | GameOver
+
+public export
+data Cue = ChompLow | ChompHigh | Energize | GhostEaten | PlayerDied
+                | LevelWon | BeginGame | FruitEaten | BonusLife
+
+public export
+Eq Cue where
+  ChompLow == ChompLow = True
+  ChompHigh == ChompHigh = True
+  Energize == Energize = True
+  GhostEaten == GhostEaten = True
+  PlayerDied == PlayerDied = True
+  LevelWon == LevelWon = True
+  BeginGame == BeginGame = True
+  FruitEaten == FruitEaten = True
+  BonusLife == BonusLife = True
+  _ == _ = False
+
+public export
+data Command = Turn Direction | Start | Pause | LoseFocus | ToggleMute | Quit | Ignore

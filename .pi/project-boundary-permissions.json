@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "paths": [
+    "/dev/null",
+    "/home/kamil/.cache/pack",
+    "/home/kamil/.cache/pack/**/*",
+    "/home/kamil/.local/share/pack",
+    "/home/kamil/.local/share/pack/**/*",
+    "/home/kamil/.local/state/pack",
+    "/home/kamil/.local/state/pack/**/*",
+    "/home/kamil/.pack",
+    "/home/kamil/.pack/**/*",
+    "/home/kamil/projects/idris2-sdl3",
+    "/home/kamil/projects/idris2-sdl3/**/*",
+    "/home/kamil/.pack/**/*",
+    "/usr/local/include",
+    "/usr/local/include/**/*",
+    "/usr/local/lib",
+    "/usr/local/lib/**/*",
+    "/usr/share/doc",
+    "/usr/share/doc/**/*",
+    "/tmp",
+    "/tmp/**/*"
+  ]
+}

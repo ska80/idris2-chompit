@@ -1,0 +1,9 @@
+package chompit-test
+
+version = 0.1.0
+depends = sdl3
+sourcedir = "src"
+builddir = "build/test"
+outputdir = "build/test/exec"
+main = TestMain
+executable = chompit-test

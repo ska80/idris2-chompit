@@ -1,0 +1,15 @@
+[custom.all.chompit]
+type = "local"
+path = "."
+ipkg = "chompit.ipkg"
+test = "chompit-test.ipkg"
+
+[custom.all.sdl3]
+type = "local"
+path = "../idris2-sdl3"
+ipkg = "sdl3.ipkg"
+
+[custom.all.sdl3-mixer]
+type = "local"
+path = "../idris2-sdl3"
+ipkg = "sdl3-mixer.ipkg"
