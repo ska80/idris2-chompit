@@ -57,8 +57,9 @@ frame loop.  Idris still allocates managed values during simulation and drawing.
 All SDL calls run on the main thread.  Scoped helpers release resources on ordinary success and
 error returns.  They release rectangle and event buffers before the renderer, and the renderer
 before the window.  Audio tracks retain their loaded assets and are destroyed before the mixer.  SDL
-shuts down last.  The [library resource contract](../../idris2-sdl3/docs/resources.md) defines the
-remaining safety limits.
+shuts down last.  The [library resource
+contract](https://github.com/ska80/idris2-sdl3/blob/master/docs/resources.md) defines the remaining
+safety limits.
 
 A renderer device reset exits with an error rather than using an invalid renderer.  A target reset
 needs no texture recovery because Chompit does not use render-target textures.  Focus loss pauses

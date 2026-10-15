@@ -1,7 +1,7 @@
 # Chompit
 
-A playable maze chase written in Idris 2 with [idris2-sdl3](../idris2-sdl3).  Idris 2 is
-pacman-complete.
+A playable maze chase written in Idris 2 with [idris2-sdl3](https://github.com/ska80/idris2-sdl3).
+Idris 2 is indeed pacman-complete.
 
 <p align="center">
   <img src="assets/screenshot.png" width="448" alt="Chompit with a blue maze, yellow player, four colored ghosts, pellets, score, and spare lives">
@@ -36,7 +36,8 @@ Install these requirements:
 
 The pkg-config package names are `sdl3` and `sdl3-mixer`.  SDL3_image and SDL3_ttf are not required.
 Python 3 is required only for tests and audio regeneration.  The build follows the sibling library's
-Chez-only scaffold.  See its [build guide](../idris2-sdl3/docs/build.md) for native dependencies.
+Chez-only scaffold.  See its [build
+guide](https://github.com/ska80/idris2-sdl3/blob/master/docs/build.md) for native dependencies.
 Linux x86-64 is the tested platform.
 
 From this repository's root, run:
