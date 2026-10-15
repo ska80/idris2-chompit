@@ -63,6 +63,77 @@ def siren(base, depth, seconds, cycles):
     return samples
 
 
+def music_note(midi, seconds, gain, voice):
+    """Soft attacks and releases keep the background parts clear of the effects."""
+    count = round(seconds * RATE)
+    frequency = 440 * 2 ** ((midi - 69) / 12)
+    attack, release = (0.18, 0.25) if voice == "chord" else (0.02, 0.10)
+    samples = []
+    for index in range(count):
+        phase = (index * frequency / RATE) % 1.0
+        sine = math.sin(TAU * phase)
+        if voice == "lead":
+            value = 0.7 * (1 - 4 * abs(phase - 0.5)) + 0.3 * sine
+        else:
+            value = sine
+        edge = min(1.0, index / (attack * RATE), (count - 1 - index) / (release * RATE))
+        decay = 1.0 if voice == "chord" else 0.25 + 0.75 * math.exp(-3 * index / count)
+        samples.append(value * gain * max(0.0, edge) * decay)
+    return samples
+
+
+def gameplay_music():
+    """Original 16-bar, 120 BPM loop in C major, with no percussion."""
+    beat = 0.5
+    samples = [0.0] * (32 * RATE)
+
+    def place(pitch, onset, duration, gain, voice):
+        # Position each note on the full timeline, not after rounded note lengths.
+        start = round(onset * beat * RATE)
+        part = music_note(pitch, duration * beat, gain, voice)
+        assert 0 <= start and start + len(part) <= len(samples)
+        for index, value in enumerate(part, start):
+            samples[index] += value
+
+    harmony = [
+        (48, (60, 64, 67)), (45, (60, 64, 69)),
+        (41, (60, 65, 69)), (43, (59, 62, 67)),
+    ]
+    # Each entry is (beat within the bar, pitch, duration in beats).
+    # Short phrases leave room for the pellet sounds and the siren.
+    phrases = [
+        [(0.5, 76, 0.5), (1.5, 79, 0.5), (2.5, 76, 0.75)],
+        [(0.0, 72, 0.75), (2.0, 76, 0.75), (3.25, 69, 0.5)],
+        [(0.5, 69, 0.5), (1.5, 72, 0.5), (3.0, 74, 0.75)],
+        [(0.0, 67, 0.75), (2.0, 74, 0.75), (3.25, 71, 0.5)],
+        [(1.0, 76, 0.75), (2.5, 79, 0.5), (3.25, 81, 0.5)],
+        [(0.0, 79, 0.75), (1.5, 76, 0.5), (3.0, 72, 0.75)],
+        [(0.5, 74, 0.5), (1.5, 72, 0.75), (3.0, 69, 0.75)],
+        [(0.5, 71, 0.5), (1.5, 74, 0.5), (3.0, 67, 0.75)],
+        [(0.5, 76, 0.75), (2.0, 79, 0.5), (3.0, 72, 0.75)],
+        [(0.0, 69, 0.75), (1.5, 72, 0.5), (3.0, 76, 0.75)],
+        [(1.0, 72, 0.75), (2.5, 74, 0.5), (3.25, 76, 0.5)],
+        [(0.0, 74, 0.75), (2.0, 71, 0.75)],
+        [(0.5, 79, 0.5), (1.5, 76, 0.75), (3.0, 74, 0.75)],
+        [(0.0, 72, 0.75), (2.0, 69, 0.75), (3.25, 72, 0.5)],
+        [(0.5, 69, 0.5), (1.5, 72, 0.75), (3.0, 74, 0.75)],
+        [(0.0, 71, 0.75), (1.5, 74, 0.5), (3.0, 71, 0.75)],
+    ]
+    for bar, phrase in enumerate(phrases):
+        root, chord = harmony[bar % len(harmony)]
+        start = bar * 4
+        place(root, start, 1.5, 0.12, "bass")
+        place(root + 7, start + 2, 1.5, 0.10, "bass")
+        for pitch in chord:
+            place(pitch, start, 4, 0.018, "chord")
+        for onset, pitch, duration in phrase:
+            place(pitch, start + onset, duration, 0.16, "lead")
+
+    # Bake the quiet mix into the asset. Effects retain their existing levels.
+    # Every part releases before the loop boundary, so both endpoints are zero.
+    return [sample * 0.65 for sample in samples]
+
+
 def sounds():
     # This tune is original. It is not a transcription of the arcade melody.
     lead = [(72, 1), (79, 1), (76, 1), (81, 1), (79, 2), (74, 1), (76, 1),
@@ -73,6 +144,7 @@ def sounds():
             (48, 2), (55, 2), (57, 2), (60, 2), (53, 2), (55, 2), (48, 3), (None, 1)]
     return {
         "title": mix(melody(lead, 0.22, 0.22), melody(bass, 0.22, 0.15)),
+        "gameplay": gameplay_music(),
         "begin": melody([(60, 1), (67, 1), (72, 1), (76, 1), (74, 1), (79, 1),
                           (84, 2), (79, 1), (76, 1), (72, 3), (None, 2)], 0.18),
         "chomp-low": tone(520, 0.075, 0.3, 160),
@@ -91,7 +163,8 @@ def sounds():
 
 def generate(output):
     output.mkdir(parents=True, exist_ok=True)
-    for name, samples in sounds().items():
+    generated = sounds()
+    for name, samples in generated.items():
         # Fail rather than silently clip a future change to the synthesizer.
         assert samples and max(abs(value) for value in samples) < 1.0, name
         pcm = b"".join(struct.pack("<h", round(value * 32767)) for value in samples)
@@ -100,11 +173,12 @@ def generate(output):
             stream.setsampwidth(2)
             stream.setframerate(RATE)
             stream.writeframes(pcm)
+    return len(generated)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     args = parser.parse_args()
-    generate(args.output)
-    print(f"Generated 12 original sounds in {args.output}")
+    count = generate(args.output)
+    print(f"Generated {count} original sounds in {args.output}")

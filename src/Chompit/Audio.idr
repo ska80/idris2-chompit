@@ -7,6 +7,8 @@ import SDL3
 import SDL3.Mixer
 import SDL3.Mixer.Scoped
 
+import Data.List
+
 %default covering
 
 export
@@ -15,6 +17,7 @@ record SoundBank where
   mixer : Mixer DeviceOutput
   tracks : List (String, Track)
   looping : PlayOptions
+  musicFadeFrames : Bits64
 
 withTracks : Mixer DeviceOutput -> String -> List String ->
              (List (String, Track) -> IO (Either String a)) -> IO (Either String a)
@@ -24,16 +27,6 @@ withTracks mixer directory (name :: names) action = withTrack mixer $ \track => 
     True <- setTrackAudio track (Just asset) | False => Left <$> getError
     pure (Right ())) | Left err => pure (Left err)
   withTracks mixer directory names $ \rest => action ((name, track) :: rest)
-
-export
-withSounds : String -> (SoundBank -> IO (Either String a)) -> IO (Either String a)
-withSounds directory action = withMixerLibrary $ withMixer $ \mixer =>
-  withTracks mixer directory ["title", "begin", "chomp-low", "chomp-high", "power", "eat-ghost",
-    "death", "clear", "fruit", "extra-life", "siren", "frightened"] $ \tracks =>
-      withPlayOptions $ \looping => do
-        True <- setMixerGain mixer 0.65 | False => Left <$> getError
-        True <- setPlayLoops looping LoopForever | False => Left <$> getError
-        action (MkSoundBank mixer tracks looping)
 
 cueName : Cue -> String
 cueName ChompLow = "chomp-low"
@@ -50,21 +43,53 @@ findTrack : String -> List (String, Track) -> Maybe Track
 findTrack _ [] = Nothing
 findTrack name ((key, track) :: rest) = if name == key then Just track else findTrack name rest
 
+export
+withSounds : String -> (SoundBank -> IO (Either String a)) -> IO (Either String a)
+withSounds directory action = withMixerLibrary $ withMixer $ \mixer =>
+  withTracks mixer directory ["title", "gameplay", "begin", "chomp-low", "chomp-high", "power", "eat-ghost",
+    "death", "clear", "fruit", "extra-life", "siren", "frightened"] $ \tracks =>
+      withPlayOptions $ \looping => do
+        True <- setMixerGain mixer 0.65 | False => Left <$> getError
+        True <- setPlayLoops looping LoopForever | False => Left <$> getError
+        let Just music = findTrack "gameplay" tracks
+          | Nothing => pure (Left "The gameplay music track is missing. Rebuild Chompit.")
+        Right fadeFrames <- trackMSToFrames music 80 | Left err => pure (Left err)
+        action (MkSoundBank mixer tracks looping fadeFrames)
+
 play : SoundBank -> String -> Bool -> IO Bool
 play bank name loop = case findTrack name bank.tracks of
   Nothing => pure False
   Just track => playTrack track (if loop then Just bank.looping else Nothing)
 
-ambient : Game -> String
-ambient game = case game.phase of
-  Title => "title"
-  Playing => if game.frightened > 0 then "frightened" else "siren"
-  _ => ""
+ambientLoops : Game -> List String
+ambientLoops game = case game.phase of
+  Title => ["title"]
+  Playing => ["gameplay", if game.frightened > 0 then "frightened" else "siren"]
+  _ => []
 
-stopAmbient : SoundBank -> String -> IO Bool
-stopAmbient bank name = case findTrack name bank.tracks of
-  Nothing => pure True
-  Just track => stopTrack track 0
+-- Loops to stop, then loops to start. Keep shared tracks running so that
+-- collecting a power pellet does not restart the gameplay music.
+export
+loopChanges : Game -> Game -> (List String, List String)
+loopChanges old new =
+  let previous = ambientLoops old
+      current = ambientLoops new
+   in (filter (\name => not (elem name current)) previous,
+       filter (\name => not (elem name previous)) current)
+
+playLoops : SoundBank -> List String -> IO Bool
+playLoops bank [] = pure True
+playLoops bank (name :: rest) = do
+  True <- play bank name True | False => pure False
+  playLoops bank rest
+
+stopLoops : SoundBank -> List String -> IO Bool
+stopLoops bank [] = pure True
+stopLoops bank (name :: rest) = do
+  let Just track = findTrack name bank.tracks | Nothing => pure False
+  True <- stopTrack track (if name == "gameplay" then bank.musicFadeFrames else 0)
+    | False => pure False
+  stopLoops bank rest
 
 pauseAll : Bool -> List (String, Track) -> IO Bool
 pauseAll paused [] = pure True
@@ -82,7 +107,8 @@ export
 startAudio : Maybe SoundBank -> Game -> IO (Either String ())
 startAudio Nothing _ = pure (Right ())
 startAudio (Just bank) game = do
-  True <- play bank "title" True | False => Left <$> getError
+  True <- playLoops bank (ambientLoops game) | False => Left <$> getError
+  True <- (if game.paused then pauseAll True bank.tracks else pure True) | False => Left <$> getError
   pure (Right ())
 
 export
@@ -90,10 +116,9 @@ updateAudio : Maybe SoundBank -> Game -> Game -> Bool -> IO (Either String ())
 updateAudio Nothing _ _ _ = pure (Right ())
 updateAudio (Just bank) old new muted = do
   True <- setMixerGain bank.mixer (if muted then 0 else 0.65) | False => Left <$> getError
-  True <- (if ambient old /= ambient new then do
-    True <- stopAmbient bank (ambient old) | False => pure False
-    if ambient new == "" then pure True else play bank (ambient new) True
-    else pure True) | False => Left <$> getError
+  let (stopped, started) = loopChanges old new
+  True <- stopLoops bank stopped | False => Left <$> getError
+  True <- playLoops bank started | False => Left <$> getError
   True <- playCues bank new.sounds | False => Left <$> getError
   True <- (if old.paused /= new.paused then pauseAll new.paused bank.tracks else pure True)
     | False => Left <$> getError

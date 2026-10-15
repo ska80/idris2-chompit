@@ -74,16 +74,28 @@ smokeInput 260 game = { ghosts := [MkGhost Red game.player Hunting False], stall
 smokeInput 300 game = { frightened := 0, ghosts := [MkGhost Pink game.player Hunting False], stall := 1 } game
 smokeInput 400 game = { phase := Playing, ghosts := [], remaining := 0 } game
 smokeInput 410 game = { phase := Clearing 1 } game
+smokeInput 420 game = { phase := Ready 1 } game
 smokeInput 430 game = { phase := Clearing 1 } game
+smokeInput 440 game = { phase := Ready 1 } game
 smokeInput 450 game = { phase := Clearing 1 } game
+smokeInput 460 game = { phase := Ready 1 } game
 smokeInput 470 game = { phase := Clearing 1 } game
+smokeInput 480 game = { phase := Ready 1 } game
 smokeInput 490 game = { phase := Clearing 1 } game
+smokeInput 500 game = { phase := Ready 1 } game
 smokeInput 510 game = { phase := GameOver, sounds := [FruitEaten, BonusLife] } game
 smokeInput 530 game = command Start game
+smokeInput 540 game = { phase := Ready 1 } game
 smokeInput _ game = game
 
+smokeMute : Int -> Bool -> Bool
+smokeMute 225 _ = True
+smokeMute 235 _ = False
+smokeMute _ muted = muted
+
 smokePassed : State -> Bool
-smokePassed state = state.game.level == 1 && state.game.maze.layoutId == 1 && state.game.highScore >= 260 &&
+smokePassed state = not state.muted && state.game.level == 1 && state.game.maze.layoutId == 1 &&
+  state.game.highScore >= 260 &&
   all (\level => elem (level, layoutNumber level) state.seenLevels) [1..6] &&
   all (\cue => elem cue state.heard) [BeginGame, ChompLow, Energize, GhostEaten, PlayerDied, LevelWon]
 
@@ -91,14 +103,15 @@ loop : Context -> State -> IO (Either String ())
 loop context state = if context.smoke && state.frames >= 560 then
   if smokePassed state then do
     let mode : String = case context.audio of Nothing => "silent"; Just _ => "audio"
-    putStrLn ("Chompit " ++ mode ++ " smoke passed: 560 frames, five layouts, level cycling, retry, movement, capture, death, and pause.")
+    putStrLn ("Chompit " ++ mode ++ " smoke passed: 560 frames, five layouts, level cycling, retry, movement, capture, death, pause, and mute.")
     pure (Right ())
   else pure (Left "The Chompit smoke test did not reach every required game state.")
   else do
     start <- ticksNS
-    Right (Just (input, muted)) <- poll 128 context state.game state.muted
+    Right (Just (input, inputMuted)) <- poll 128 context state.game state.muted
       | Right Nothing => pure (Right ())
       | Left err => pure (Left err)
+    let muted = if context.smoke then smokeMute state.frames inputMuted else inputMuted
     let edited = if context.smoke then smokeInput state.frames input else input
     let (count, remainder) = if context.smoke then (1, 0)
           else if edited.paused then (0, 0)

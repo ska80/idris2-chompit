@@ -4,6 +4,7 @@ import Chompit.Types
 import Chompit.Maze
 import Chompit.Game
 import Chompit.Input
+import Chompit.Audio
 
 import SDL3
 
@@ -363,6 +364,39 @@ inputTests =
       , ("Letter controls also accept uppercase keys", case keyCommand (MkScancode 0) (MkKeycode 87) of Turn North => True; _ => False)
       ]
 
+audioTests : List (String, Bool)
+audioTests =
+  let ready = { phase := Ready 120 } newGame
+      powered = { frightened := 360 } playing
+      paused = command Pause playing
+      dead = { phase := Dying 90 } playing
+      cleared = { phase := Clearing 120 } playing
+      over = { phase := GameOver } playing
+   in [ ("The start jingle does not overlap background loops",
+         loopChanges newGame ready == (["title"], []))
+      , ("Gameplay starts music and the siren together",
+         loopChanges ready playing == ([], ["gameplay", "siren"]))
+      , ("Ordinary updates do not restart the loops", loopChanges playing playing == ([], []))
+      , ("Power pellets change the alarm without restarting music",
+         loopChanges playing powered == (["siren"], ["frightened"]))
+      , ("Expiring protection keeps the music playing",
+         loopChanges powered playing == (["frightened"], ["siren"]))
+      , ("Ghost capture keeps the music position",
+         loopChanges powered ({ freeze := 30 } powered) == ([], []))
+      , ("Pause keeps the selected loops", loopChanges playing paused == ([], []))
+      , ("Resume does not restart the loops", loopChanges paused (command Pause paused) == ([], []))
+      , ("Death stops both gameplay loops", loopChanges playing dead == (["gameplay", "siren"], []))
+      , ("Death also stops the frightened loop",
+         loopChanges powered dead == (["gameplay", "frightened"], []))
+      , ("Level completion stops both gameplay loops",
+         loopChanges playing cleared == (["gameplay", "siren"], []))
+      , ("Game over stops the music", loopChanges playing over == (["gameplay", "siren"], []))
+      , ("The ready countdown stays free of background music", loopChanges dead ready == ([], []))
+      , ("The next level starts a fresh music loop",
+         loopChanges ready (freshLevel 2) == ([], ["gameplay", "siren"]))
+      , ("Retry waits for play before starting music", loopChanges over (command Start over) == ([], []))
+      ]
+
 runTests : List (String, Bool) -> IO ()
 runTests [] = pure ()
 runTests ((name, passed) :: rest) = do
@@ -371,6 +405,7 @@ runTests ((name, passed) :: rest) = do
 
 main : IO ()
 main = do
-  let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++ levelTests ++ inputTests
+  let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++
+              levelTests ++ inputTests ++ audioTests
   runTests tests
   putStrLn (show (length tests) ++ " Chompit tests passed.")

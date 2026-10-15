@@ -5,7 +5,7 @@ yellow, red, pink, cyan, orange, white, and pale pink pellets.  The graphics do 
 image or font files.  `menu.png` shows the starting menu, and `screenshot.png` shows gameplay.  Both
 images show actual software-rendered frames.
 
-The twelve original audio files in `assets/sounds/` are tracked in Git.  `tools/generate_audio.py`
+The thirteen original audio files in `assets/sounds/` are tracked in Git.  `tools/generate_audio.py`
 recreates them with only the Python standard library.  Each file contains mono, signed 16-bit PCM at
 22,050 Hz.  PCM stores the waveform as a sequence of samples.  The synthesis uses tones, pitch
 sweeps, and short melodies, with quiet endpoints to reduce clicks.
@@ -13,6 +13,7 @@ sweeps, and short melodies, with quiet endpoints to reduce clicks.
 | Filename | Use |
 | --- | --- |
 | `title.wav` | Looping title music |
+| `gameplay.wav` | Quiet gameplay music, alongside the warning loops |
 | `begin.wav` | Start jingle |
 | `chomp-low.wav`, `chomp-high.wav` | Alternating pellet sounds |
 | `power.wav` | Power-pellet cue |
@@ -23,6 +24,11 @@ sweeps, and short melodies, with quiet endpoints to reduce clicks.
 | `extra-life.wav` | Extra life |
 | `siren.wav` | Normal play loop |
 | `frightened.wav` | Power-pellet loop |
+
+`gameplay.wav` contains a 32-second loop at 120 beats per minute.  It combines a soft melody, bass
+notes, and quiet chords without drums.  The mix stays below the existing warning loops and sound
+effects.  Both endpoints are zero, with gradual note attacks and releases to avoid sudden changes
+where the loop repeats.
 
 Run `make assets` from the repository root to regenerate the files.  This command overwrites the
 tracked WAV files in `assets/sounds/`.  Normal builds use the bundled files without regeneration,

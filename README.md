@@ -10,9 +10,9 @@ Idris 2 is indeed pacman-complete.
 
 Chompit has five 28 × 31 mazes: the classic layout and four original layouts.  It keeps the arcade
 palette, wraparound tunnel, and four ghost personalities.  The game renders its own pixel art and
-bitmap font.  The repository includes original arcade-style effects, a title tune, and short musical
-cues in `assets/sounds/`.  A Python script can regenerate these files.  No ROM, sampled arcade
-audio, external font, or downloaded asset is required.
+bitmap font.  The repository includes original arcade-style effects, title and gameplay music, and
+short musical cues in `assets/sounds/`.  A Python script can regenerate these files.  No ROM,
+sampled arcade audio, external font, or downloaded asset is required.
 
 This is a playable first version, not a cycle-accurate reproduction.  Ghost release timers and some
 level rules differ from the arcade game.  The generated melodies and waveforms are original, not
@@ -77,6 +77,9 @@ Movement continues without a held key.  Turns wait until the next legal junction
 between junctions.  The game pauses when its window loses keyboard focus.  Press P to resume after
 you return.  The resizable window preserves the 224 × 288 display proportions.
 
+A quiet music loop accompanies active play.  It fades out after death or level completion.  P pauses
+the music with the game, and M mutes music and effects together.
+
 Dots score 10 points, and each maze has four power pellets worth 50 points.  The first maze has 240
 dots, with different counts in the other layouts.  Power pellets turn hunting ghosts blue for a
 limited time.  Consecutive captures score 200, 400, 800, then 1,600 points.  Captured eyes return to
@@ -110,12 +113,13 @@ The Idris tests depend on the `chompit` package and build into `test/build/`.  `
 both the game and test build output.
 
 The suite tests all five mazes, movement, ghost targets, collisions, scoring, timers, input mapping,
-and automatic level changes.  It also compares bundled WAV files with regenerated audio.
+automatic level changes, and audio transitions.  Audio tests compare bundled WAV files with
+regenerated audio.  They also test the music level and the join between repeats.
 
 A smoke test runs a short scripted game with dummy SDL devices.  The audio and silent runs each draw
-560 frames, covering all five layouts, cycling after level five, and retry.  These runs exercise
-drawing and audio calls, but do not assess sound quality on speakers.  Run `make smoke` for those
-runs alone.
+560 frames, covering all five layouts, cycling after level five, and retry.  They also exercise
+music starts, pause, and mute.  These runs test drawing and audio calls, but do not assess sound
+quality on speakers.  Run `make smoke` for those runs alone.
 
 The simulation does not use SDL or perform I/O.  Rendering, input, and audio stay outside it.  See
 [docs/design.md](docs/design.md) for module boundaries and resource cleanup.  Project code and

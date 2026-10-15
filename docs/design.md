@@ -16,9 +16,9 @@ terminate.  This does not prove that the game rules match the arcade machine.
 | `src/Chompit/Render.idr` | Wall outlines, sprites, text, and rectangle batches |
 | `src/Chompit/Audio.idr` | Reusable mixer tracks, sound cues, loops, pause, and mute |
 | `src/Main.idr` | Options, resource scopes, event polling, frame timing, and smoke scenarios |
-| `test/src/Main.idr` | Simulation and input tests |
-| `tools/generate_audio.py` | Deterministic synthesis of twelve WAV files |
-| `test/src/test_audio.py` | Audio format, amplitude, endpoints, and reproducibility tests |
+| `test/src/Main.idr` | Simulation, input, and audio transition tests |
+| `tools/generate_audio.py` | Deterministic synthesis of thirteen WAV files |
+| `test/src/test_audio.py` | Audio format, signal level, repeat boundaries, and reproducibility tests |
 
 ## Simulation and movement
 
@@ -66,6 +66,21 @@ carry over.  Death keeps the current layout and collected pellets, but a retry s
 After level five, layouts repeat while the level number continues to increase.  Speed, fruit value,
 and power-pellet duration still use that level number.  This layout cycle is an intentional
 difference from the arcade game.
+
+## Audio
+
+The title screen uses its own music loop.  Active play mixes a quiet 32-second music loop with the
+normal siren or the power-pellet warning loop.  The generated music uses soft tones and leaves room
+for the existing effects.  This background music is an intentional addition to the arcade rules.
+
+`loopChanges` lists the loops to stop and start after a game update.  Shared loops keep their
+playback positions, so a power pellet changes only the warning loop.  Gameplay music fades out over
+80 milliseconds when active play ends.  The next period of play starts the music from the beginning.
+Pausing holds every track at its current position, and muting changes only the mixer output level.
+
+All thirteen tracks and their looping options are created before the frame loop.  The fade duration
+uses the music file's sample rate, including when a custom asset directory supplies a different
+format.  Tracks retain their decoded audio until cleanup.
 
 ## Drawing and ownership
 
