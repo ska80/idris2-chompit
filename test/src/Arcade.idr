@@ -49,7 +49,7 @@ speedTests : (Int, Int, Int, Int, Int, Int) -> List (String, Bool)
 speedTests (level, player, powered, normal, scared, tunnel) =
   let game = { level := level } idleGame
       fright = { frightened := frightDuration level } game
-      ghost = MkGhost Red (MkActor (At 12 11) East 0) Hunting False False
+      ghost = MkGhost Red (MkActor (At 12 11) East 0) Hunting False False Nothing
       inTunnel = { actor := MkActor (At 5 14) West 0 } ghost
       moved = step ({ player := MkActor (At 0 14) West 0, wanted := West, ghosts := [] } game)
       advanced = step ({ ghosts := [ghost] } game)
@@ -112,7 +112,7 @@ scheduleTests level boundaries =
 
 scheduleRules : List (String, Bool)
 scheduleRules =
-  let ghost = MkGhost Red (MkActor (At 12 11) East 120) Hunting False False
+  let ghost = MkGhost Red (MkActor (At 12 11) East 120) Hunting False False Nothing
       game = { level := 2, modeTicks := 65519, ghosts := [ghost] } idleGame
       pulse = step game
       chase = step pulse
@@ -207,7 +207,7 @@ idleRules =
       fastBefore = advance 179 ({ level := 5 } global)
       fedAtDeadline = eatDot ({ release := { idleTicks := 239 } global.release } global)
       emptyHouse = advance 240 ({ ghosts := [] } idleGame)
-      lateReturn = step ({ ghosts := [MkGhost Cyan (MkActor (At 13 14) North 0) (InPen West) True False] } emptyHouse)
+      lateReturn = step ({ ghosts := [MkGhost Cyan (MkActor (At 13 14) North 0) (InPen West) True False Nothing] } emptyHouse)
    in [ ("The idle timeout releases the preferred ghost at exactly four seconds",
          waiting Pink beforeIdle && beforeIdle.release.idleTicks == 239 && leaving Pink forced &&
          forced.release.idleTicks == 0 && forced.release.globalDots == Just 0 && waiting Cyan forced)
@@ -242,13 +242,13 @@ resetRules =
 
 returnRules : List (String, Bool)
 returnRules =
-  let returned = step ({ ghosts := [MkGhost Cyan (MkActor (At 13 14) North 0) Eyes False False] } (feed 30 idleGame))
-      redReturn = step ({ ghosts := [MkGhost Red (MkActor (At 13 14) North 0) (InPen West) True False],
+  let returned = step ({ ghosts := [MkGhost Cyan (MkActor (At 11 14) North 0) Entering False False (Just (At (houseSeat Cyan).x houseBottom))] } (feed 30 idleGame))
+      redReturn = step ({ ghosts := [MkGhost Red (MkActor (At 13 14) North 0) (InPen West) True False Nothing],
                          release := { globalDots := Just 100 } idleGame.release } idleGame)
-      outside = { ghosts := [MkGhost Orange (MkActor (At 13 11) West 0) Hunting False False],
+      outside = { ghosts := [MkGhost Orange (MkActor (At 13 11) West 0) Hunting False False Nothing],
                   release := { globalDots := Just 31, elroyWaiting := False } idleGame.release } idleGame
       missed = eatDot outside
-      home = step ({ ghosts := [MkGhost Pink (MkActor (At 13 14) North 0) Eyes False False] } (eatDot missed))
+      home = step ({ ghosts := [MkGhost Pink (MkActor (At 13 14) North 0) Entering False False (Just (At (houseSeat Pink).x houseBottom))] } (eatDot missed))
       stuck = eatDot home
       timeout = step ({ release := { idleTicks := 239 } stuck.release } stuck)
    in [ ("Returned cyan retains its satisfied personal count and leaves without a fixed delay",
@@ -282,12 +282,12 @@ elroyTests (level, threshold) =
 
 elroyRules : List (String, Bool)
 elroyRules =
-  let red = MkGhost Red (MkActor (At 12 11) East 0) Hunting False False
+  let red = MkGhost Red (MkActor (At 12 11) East 0) Hunting False False Nothing
       fast = { remaining := 10 } idleGame
       blocked = { release := { elroyWaiting := True, cyanDots := 30, orangeDots := 59 } fast.release } fast
       released = step ({ release := { orangeDots := 60 } blocked.release } blocked)
       timed = step ({ release := { globalDots := Just 40, idleTicks := 239 } blocked.release,
-                     ghosts := [MkGhost Orange (MkActor (At 15 14) North 0) (InPen West) False False] } blocked)
+                     ghosts := [MkGhost Orange (MkActor (At 15 14) North 0) (InPen West) False False Nothing] } blocked)
       base = { level := 5 } idleGame
       quick = { remaining := 40 } base
    in concatMap elroyTests
@@ -315,7 +315,7 @@ safeTurns level =
       game = { level := level, maze := maze, modeTicks := 500 } idleGame
    in all (\tile => all (\heading => not (canMove maze False tile (opposite heading)) ||
         let actor = MkActor tile heading 0
-            direction = ghostDirection game (MkGhost Red actor Hunting False False) actor
+            direction = ghostDirection game (MkGhost Red actor Hunting False False Nothing) actor
          in canMove maze False tile direction && direction /= opposite heading) directions)
       (filter (walkable maze False) allTiles)
 
@@ -324,14 +324,14 @@ turnRules =
   let maze = buildMaze 1
       points = [At 12 11, At 15 11, At 12 23, At 15 23]
       actor = MkActor (At 12 11) East 0
-      ghost = MkGhost Red actor Hunting False False
+      ghost = MkGhost Red actor Hunting False False Nothing
       game = { modeTicks := 500, player := MkActor (At 12 1) North 0 } idleGame
       frightened = { frightened := 100 } game
-      eye = MkGhost Red (MkActor (At 12 23) East 0) Eyes False False
-      atDoor = MkGhost Cyan (MkActor (At 13 11) North 0) (Leaving West) False False
+      eye = MkGhost Red (MkActor (At 12 23) East 0) Eyes False False Nothing
+      atDoor = MkGhost Cyan (MkActor (At 13 11) North 0) (Leaving West) False False (Just houseDoorPosition)
       normalExit = step ({ ghosts := [atDoor] } idleGame)
       reversedExit = step ({ ghosts := [atDoor], modeTicks := 419 } idleGame)
-      inHouse = MkGhost Cyan (MkActor (At 11 14) North 0) (InPen West) False False
+      inHouse = MkGhost Cyan (MkActor (At 11 14) North 0) (InPen West) False False Nothing
       reversedHouse = step ({ ghosts := [inHouse], modeTicks := 419 } idleGame)
       poweredHouse = eatPower ({ ghosts := [inHouse] } idleGame)
    in [ ("The classic maze has exactly four restricted upward junctions",
@@ -339,7 +339,7 @@ turnRules =
       , ("Normal ghosts cannot choose an upward exit at any restricted junction",
          all (\tile => let actor = MkActor tile East 0
                        in ghostDirection ({ player := MkActor (At tile.x 0) North 0 } game)
-                            (MkGhost Red actor Hunting False False) actor /= North) points)
+                            (MkGhost Red actor Hunting False False Nothing) actor /= North) points)
       , ("The player can still turn upward at these junctions", all (\tile => canMove maze False tile North) points)
       , ("Frightened ghosts can choose the restricted upward exit",
          any (\seed => ghostDirection ({ seed := seed } frightened) ghost actor == North) (the (List Bits32) [0..3]))

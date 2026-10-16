@@ -50,6 +50,7 @@ record State where
   -- Difficulty level, layout, and intermission quarters seen by the renderer.
   seenLevels : List (Int, Int)
   seenScenes : List (Interlude, Int)
+  seenHouse : List (Identity, Int)
   scores : ScoreStore
 
 finish : State -> Either String () -> IO (Either String ())
@@ -83,10 +84,10 @@ smokeInput 200 game = command (Turn North) game
 smokeInput 210 game = command Pause game
 smokeInput 220 game = command Pause game
 smokeInput 240 game = { player := MkActor (At 1 3) North 0,
-                        ghosts := [MkGhost Red (MkActor (At 12 11) East 120) Hunting False False], stall := 1 } game
+                        ghosts := [MkGhost Red (MkActor (At 12 11) East 120) Hunting False False Nothing], stall := 1 } game
 smokeInput 245 game = { frightened := 28 } game
-smokeInput 260 game = { ghosts := [MkGhost Red game.player Hunting False False], stall := 1 } game
-smokeInput 300 game = { frightened := 0, ghosts := [MkGhost Pink game.player Hunting False False], stall := 1 } game
+smokeInput 260 game = { ghosts := [MkGhost Red game.player Hunting False False Nothing], stall := 1 } game
+smokeInput 300 game = { frightened := 0, ghosts := [MkGhost Pink game.player Hunting False False Nothing], stall := 1 } game
 smokeInput 400 game = { phase := Playing, ghosts := [], remaining := 0 } game
 smokeInput 410 game = { phase := Clearing 1 } game
 smokeInput 420 game = { phase := Ready 1, fruitTime := 300 } game
@@ -105,7 +106,7 @@ smokeInput 540 game = { phase := Ready 1, fruitTime := 300 } game
 smokeInput 550 game = { phase := Clearing 1 } game
 smokeInput 560 game = { phase := Ready 1, fruitTime := 300 } game
 smokeInput 564 game = { player := MkActor (At 1 3) North 0, stall := 1,
-                        ghosts := [MkGhost Red (MkActor (At 12 11) East 0) Hunting False False] } game
+                        ghosts := [MkGhost Red (MkActor (At 12 11) East 0) Hunting False False Nothing] } game
 smokeInput 570 game = { phase := Clearing 1 } game
 smokeInput 580 game = { phase := Ready 1, fruitTime := 300 } game
 smokeInput 590 game = { phase := Clearing 1 } game
@@ -119,6 +120,14 @@ smokeInput 647 game = { remaining := 40 } game
 smokeInput 650 game = { phase := GameOver, sounds := [FruitEaten, BonusLife] } game
 smokeInput 670 game = command Start game
 smokeInput 680 game = { phase := Ready 1 } game
+smokeInput 700 game =
+  { player := MkActor (At 13 23) North 0, wanted := North,
+    ghosts := [ MkGhost Red (MkActor (At 12 11) East 200) Eyes False False Nothing
+              , MkGhost Pink (MkActor (At 16 11) West 0) Eyes False False Nothing
+              , MkGhost Cyan (MkActor (At 13 11) East 0) Eyes False False Nothing
+              , MkGhost Orange (MkActor (At 14 11) West 0) Eyes False False Nothing ] } game
+smokeInput 800 game = { release := { cyanDots := 30 } game.release } game
+smokeInput 810 game = { release := { orangeDots := 60 } game.release } game
 smokeInput _ game = game
 
 smokeMute : Int -> Bool -> Bool
@@ -143,18 +152,31 @@ sceneSample game = case game.phase of
   Intermission scene ticks => [(scene, (intermissionDuration - ticks) `div` 120)]
   _ => []
 
+houseSamples : Game -> List (Identity, Int)
+houseSamples game = concatMap sample game.ghosts
+  where
+    sample : Ghost -> List (Identity, Int)
+    sample ghost = case ghost.state of
+      InPen _ => [(ghost.identity, if ghost.revived then 3 else 0)]
+      Leaving _ => [(ghost.identity, 1)]
+      Entering => [(ghost.identity, 2)]
+      Hunting => if ghost.revived then [(ghost.identity, 4)] else []
+      _ => []
+
 smokePassed : State -> Bool
 smokePassed state = not state.muted && state.game.level == 1 && state.game.maze.layoutId == 1 &&
-  state.game.highScore >= 260 && state.frames == 700 + 3 * (intermissionDuration + 15) &&
+  state.game.highScore >= 260 && state.frames == 900 + 3 * (intermissionDuration + 15) &&
   all (\level => elem (level, layoutNumber level) state.seenLevels) [1..13] &&
   all (\scene => all (\quarter => elem (scene, quarter) state.seenScenes) [0..3]) [Turnabout, Snag, Costume] &&
+  all (\identity => elem (identity, 0) state.seenHouse) [Pink, Cyan, Orange] &&
+  all (\identity => all (\stage => elem (identity, stage) state.seenHouse) [1..4]) [Red, Pink, Cyan, Orange] &&
   all (\cue => elem cue state.heard) [BeginGame, ChompLow, Energize, GhostEaten, PlayerDied, LevelWon]
 
 loop : Context -> State -> IO (Either String ())
-loop context state = if context.smoke && (state.scriptFrame >= 700 || state.frames >= 3000) then
+loop context state = if context.smoke && (state.scriptFrame >= 900 || state.frames >= 3000) then
   if smokePassed state then do
     let mode : String = case context.audio of Nothing => "silent"; Just _ => "audio"
-    putStrLn ("Chompit " ++ mode ++ " smoke passed: " ++ show state.frames ++ " frames, five layouts, eight bonus icons, three intermissions, level cycling, retry, movement, capture, death, pause, and mute.")
+    putStrLn ("Chompit " ++ mode ++ " smoke passed: " ++ show state.frames ++ " frames, five layouts, eight bonus icons, three intermissions, house paths, level cycling, retry, movement, capture, death, pause, and mute.")
     finish state (Right ())
   else finish state (Left "The Chompit smoke test did not reach every required game state.")
   else do
@@ -186,11 +208,12 @@ loop context state = if context.smoke && (state.scriptFrame >= 700 || state.fram
     let heard = if context.smoke then nub (game.sounds ++ state.heard) else []
     let levels = if context.smoke then nub ((game.level, game.maze.layoutId) :: state.seenLevels) else []
     let scenes = if context.smoke then nub (sceneSample game ++ state.seenScenes) else []
+    let house = if context.smoke then nub (houseSamples game ++ state.seenHouse) else []
     loop context ({ game := { sounds := [] } game, muted := muted, previous := start,
                     remainder := remainder, frames := state.frames + 1,
                     scriptFrame := if context.smoke && not inScene then state.scriptFrame + 1 else state.scriptFrame,
                     sceneFrames := if inScene then state.sceneFrames + 1 else 0,
-                    heard := heard, seenLevels := levels, seenScenes := scenes, scores := scores } state)
+                    heard := heard, seenLevels := levels, seenScenes := scenes, seenHouse := house, scores := scores } state)
 
 runWindow : Options -> Maybe SoundBank -> IO (Either String ())
 runWindow options audio = withWindow "Chompit | Idris 2 + SDL3" 672 864 resizable $ \window =>
@@ -205,7 +228,7 @@ runWindow options audio = withWindow "Chompit | Idris 2 + SDL3" 672 864 resizabl
       Right () <- startAudio audio game | Left err => pure (Left err)
       now <- ticksNS
       loop (MkContext window identifier display events audio options.smoke)
-           (MkState game False now 0 0 0 0 [] [] [] scores)
+           (MkState game False now 0 0 0 0 [] [] [] [] scores)
 
 main : IO ()
 main = do

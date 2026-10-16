@@ -22,7 +22,10 @@ cleared level =
         eaten := pelletCount maze, phase := Clearing 1,
         score := 15000, highScore := 20000, lives := 2, extraLife := True,
         player := MkActor (At 1 1) East 72, wanted := West,
-        ghosts := map (\g => { reversePending := g.identity == Red } g) newGame.ghosts,
+        ghosts := map (\g => if g.identity == Cyan then
+                      { state := Entering, actor := MkActor (At 13 12) South 0,
+                        housePosition := Just (At houseDoorPosition.x (12 * 256)) } g
+                      else { reversePending := g.identity == Red } g) newGame.ghosts,
         modeTicks := 1000, chain := 3, stall := 2, freeze := 30,
         fruitTime := 90, fruitStage := 2, popup := Just (At 13 17, 100, 60),
         release := MkReleaseCounters 0 30 60 Nothing 12 False, seed := 123 } newGame
@@ -32,6 +35,7 @@ sameState Hunting Hunting = True
 sameState (InPen a) (InPen b) = a == b
 sameState (Leaving a) (Leaving b) = a == b
 sameState Eyes Eyes = True
+sameState Entering Entering = True
 sameState _ _ = False
 
 sameActor : Actor -> Actor -> Bool
@@ -39,7 +43,8 @@ sameActor a b = a.tile == b.tile && a.heading == b.heading && a.progress == b.pr
 
 sameGhost : Ghost -> Ghost -> Bool
 sameGhost a b = a.identity == b.identity && sameActor a.actor b.actor &&
-  sameState a.state b.state && a.revived == b.revived && a.reversePending == b.reversePending
+  sameState a.state b.state && a.revived == b.revived && a.reversePending == b.reversePending &&
+  a.housePosition == b.housePosition
 
 sameCounters : ReleaseCounters -> ReleaseCounters -> Bool
 sameCounters a b = a.pinkDots == b.pinkDots && a.cyanDots == b.cyanDots &&

@@ -20,7 +20,7 @@ quiet = { phase := Playing, player := MkActor (At 13 23) North 0, wanted := Nort
           ghosts := [], dots := empty, powers := empty, modeTicks := 100 } newGame
 
 hunter : Actor -> Ghost
-hunter actor = MkGhost Red actor Hunting False False
+hunter actor = MkGhost Red actor Hunting False False Nothing
 
 sameActor : Actor -> Actor -> Bool
 sameActor a b = a.tile == b.tile && a.heading == b.heading && a.progress == b.progress
@@ -39,7 +39,7 @@ signalRules =
       repeated = requestReverse signaled
       moved = moveGhost quiet repeated
       eyes = { state := Eyes, reversePending := True } ghost
-      eyeCenter = moveGhost quiet (MkGhost Red (MkActor (At 13 11) West 0) Eyes False False)
+      eyeCenter = moveGhost quiet (MkGhost Red (MkActor (At 13 11) West 0) Eyes False False Nothing)
       house = requestReverse ({ state := InPen West } ghost)
       leaving = requestReverse ({ state := Leaving West } ghost)
    in [ ("Requesting a reversal does not move or turn the ghost",
@@ -55,8 +55,8 @@ signalRules =
          not leaving.reversePending && case leaving.state of Leaving East => True; _ => False)
       , ("Returning eyes ignore reversal requests", not (requestReverse eyes).reversePending)
       , ("Eye movement discards any stale pending request", not (moveGhost quiet eyes).reversePending)
-      , ("Eyes at a center choose the shortest route instead of keeping a hunting heading",
-         eyeCenter.actor.heading == South && eyeCenter.actor.progress == 88)
+      , ("Eyes at the entrance align with the door instead of keeping a hunting heading",
+         eyeCenter.actor.heading == East && ghostPosition eyeCenter == At (13 * 256 + 64) (11 * 256))
       ]
 
 centerRules : List (String, Bool)
@@ -148,7 +148,8 @@ lifecycleRules =
       frozen = advance 30 ({ freeze := 30 } game)
       captured = step ({ frightened := 60, stall := 1,
                          ghosts := [requestReverse (hunter quiet.player)] } quiet)
-      eyes = moveGhost quiet (MkGhost Red (MkActor (At 13 14) North 0) Eyes False True)
+      eyes = moveGhost quiet (MkGhost Red (MkActor (At 13 14) North 0) Entering False True
+                               (Just (At (houseSeat Red).x houseBottom)))
       died = step ({ phase := Dying 1, lives := 2 } game)
       loaded = step ({ phase := Clearing 1 } game)
       retried = command Start ({ phase := GameOver } game)
@@ -169,7 +170,7 @@ lifecycleRules =
 modeRules : List (String, Bool)
 modeRules =
   let early = hunter (MkActor (At 12 11) East 250)
-      late = MkGhost Pink (MkActor (At 15 11) East 0) Hunting False False
+      late = MkGhost Pink (MkActor (At 15 11) East 0) Hunting False False Nothing
       changed = step ({ modeTicks := 419, ghosts := [early, late] } quiet)
       firstPulse = step ({ level := 2, modeTicks := 65519, ghosts := [early] } quiet)
       secondPulse = step firstPulse
@@ -268,7 +269,8 @@ flashStates =
       leaving = { state := Leaving West } ghost
       eyes = { state := Eyes } ghost
       revived = { revived := True } ghost
-      returned = moveGhost game (MkGhost Red (MkActor (At 13 14) North 0) Eyes False True)
+      returned = moveGhost game (MkGhost Red (MkActor (At 13 14) North 0) Entering False True
+                                  (Just (At (houseSeat Red).x houseBottom)))
    in [ ("Frightened bodies in the maze and house use the same warning color",
          all (isFlashing game) [ghost, waiting, leaving])
       , ("Eyes and revived bodies do not flash",

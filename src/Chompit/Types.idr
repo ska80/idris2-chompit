@@ -72,8 +72,13 @@ Eq Identity where
   _ == _ = False
 
 public export
--- House states remember the direction to take after crossing the door.
-data GhostState = Hunting | InPen Direction | Leaving Direction | Eyes
+-- Waiting and leaving bodies remember their eventual exit direction.
+data GhostState = Hunting | InPen Direction | Leaving Direction | Eyes | Entering
+
+-- The maze route ends beside the center of the two-tile door.
+public export
+houseEntrance : Tile
+houseEntrance = At 13 11
 
 public export
 record Ghost where
@@ -84,6 +89,8 @@ record Ghost where
   revived : Bool
   -- A reversal request waits until the next tile center.
   reversePending : Bool
+  -- House paths can lie between tile centerlines. Coordinates use 1/256 tiles.
+  housePosition : Maybe Tile
 
 public export
 record ReleaseCounters where

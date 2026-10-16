@@ -2,6 +2,7 @@ module Main
 
 import Arcade
 import GhostTiming
+import House
 import Intermissions
 
 import Chompit.Types
@@ -101,15 +102,15 @@ returned Z game = False
 returned (S fuel) game = case firstGhost game of
   Nothing => False
   Just ghost => case ghost.state of
-    InPen _ => ghost.actor.tile == At 13 14
+    InPen _ => ghostPosition ghost == At (houseSeat ghost.identity).x houseBottom
     _ => returned fuel (step game)
 
 homeTest : Game -> Tile -> Bool
-homeTest game tile = returned 1500 ({ ghosts := [MkGhost Red (MkActor tile East 0) Eyes False False] } game)
+homeTest game tile = returned 1500 ({ ghosts := [MkGhost Red (MkActor tile East 0) Eyes False False Nothing] } game)
 
 capture : Game -> Game
 capture game = step ({ player := MkActor (At 13 23) West 0, wanted := West,
-                       stall := 1, freeze := 0, ghosts := [MkGhost Red (MkActor (At 13 23) West 0) Hunting False False] } game)
+                       stall := 1, freeze := 0, ghosts := [MkGhost Red (MkActor (At 13 23) West 0) Hunting False False Nothing] } game)
 
 samePosition : Actor -> Actor -> Bool
 samePosition a b = actorPosition a == actorPosition b
@@ -118,7 +119,7 @@ mazeTests : List (String, Bool)
 mazeTests =
   let maze = buildMaze 1
       reached = flood maze
-      descend = \tile => tile == At 13 14 || not (walkable maze True tile) ||
+      descend = \tile => tile == houseEntrance || not (walkable maze True tile) ||
         any (\d => case (lookup (key tile) maze.homeDistances, lookup (key (neighbor tile d)) maze.homeDistances) of
           (Just a, Just b) => b == a - 1
           _ => False) directions
@@ -159,18 +160,18 @@ ghostTests : List (String, Bool)
 ghostTests =
   let game = { player := MkActor (At 12 20) East 0 } newGame
       north = { player := MkActor (At 12 20) North 0 } game
-      red = MkGhost Red (MkActor (At 1 1) East 0) Hunting False False
+      red = MkGhost Red (MkActor (At 1 1) East 0) Hunting False False Nothing
       pink = { identity := Pink } red
       cyan = { identity := Cyan } red
       far = { identity := Orange } red
-      near = MkGhost Orange (MkActor (At 13 20) West 0) Hunting False False
+      near = MkGhost Orange (MkActor (At 13 20) West 0) Hunting False False Nothing
       active = { phase := Playing } newGame
       pen = step active
       power = step ({ ghosts := [{ actor := MkActor (At 6 5) East 120 } red] } (atTile (At 1 3)))
    in [ ("Red targets the player", chaseTarget game red == At 12 20)
       , ("Pink targets four tiles ahead", chaseTarget game pink == At 16 20)
       , ("Pink preserves the upward look-ahead quirk", chaseTarget north pink == At 8 16)
-      , ("Cyan doubles the vector from red to two tiles ahead", chaseTarget game cyan == At 15 29)
+      , ("Cyan doubles the vector from red to two tiles ahead", chaseTarget game cyan == At 14 29)
       , ("Orange chases from a distance", chaseTarget game far == At 12 20)
       , ("Orange retreats when the player is near", chaseTarget game near == At 0 33)
       , ("Scatter and chase use timed phases", isScatter 1 0 && not (isScatter 1 420) && isScatter 1 1620 && not (isScatter 1 5040))
@@ -183,7 +184,7 @@ ghostTests =
       , ("Later levels reduce power-pellet protection", frightDuration 1 == 360 && frightDuration 19 == 0)
       , ("Revived ghosts resist the current power pellet", not (isFrightened ({ frightened := 360 } playing) ({ revived := True } red)))
       , ("A new power pellet removes revival immunity", maybe False (isFrightened power) (firstGhost (step ({ ghosts := [{ revived := True } red] } (atTile (At 1 3))))))
-      , ("Eyes regain immunity inside the house", maybe False (\g => g.revived) (firstGhost (step ({ ghosts := [MkGhost Red (MkActor (At 13 14) North 0) Eyes False False] } playing))))
+      , ("Eyes regain immunity inside the house", maybe False (\g => g.revived) (firstGhost (step ({ ghosts := [MkGhost Red (MkActor (At 13 14) North 0) Entering False False (Just (At (houseSeat Red).x houseBottom))] } playing))))
       , ("Eyes return from all maze corners and both tunnel ends", all (homeTest playing) [At 1 1, At 26 1, At 1 29, At 26 29, At 0 14, At 27 14])
       ]
 
@@ -257,7 +258,7 @@ levelMazeTests number =
       label = "Layout " ++ show number ++ ": "
       expected : Int = case number of 1 => 244; 2 => 258; 3 => 250; 4 => 252; _ => 260
       passages = filter (walkable maze False) allTiles
-      descend = \tile => tile == At 13 14 || not (walkable maze True tile) ||
+      descend = \tile => tile == houseEntrance || not (walkable maze True tile) ||
         any (\d => case (lookup (key tile) maze.homeDistances, lookup (key (neighbor tile d)) maze.homeDistances) of
           (Just a, Just b) => b == a - 1
           _ => False) directions
@@ -386,7 +387,7 @@ audioTests =
       dead = { phase := Dying 90 } playing
       cleared = { phase := Clearing 120 } playing
       over = { phase := GameOver } playing
-      eyes = MkGhost Red (MkActor (At 1 1) East 0) Eyes False False
+      eyes = MkGhost Red (MkActor (At 1 1) East 0) Eyes False False Nothing
       returning = { ghosts := [eyes] } playing
    in [ ("The start jingle does not overlap background loops",
          loopChanges newGame ready == (["title"], []))
@@ -488,7 +489,7 @@ runSuite : IO ()
 runSuite = do
   let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++
               levelTests ++ inputTests ++ audioTests ++ bonusTests ++ highScoreTests ++
-              arcadeTests ++ ghostTimingTests ++ intermissionTests
+              arcadeTests ++ ghostTimingTests ++ houseTests ++ intermissionTests
   runTests tests
   putStrLn (show (length tests) ++ " Chompit tests passed.")
 

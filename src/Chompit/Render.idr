@@ -157,8 +157,9 @@ ghostAt frame scared flashing eyes identity heading x y =
 
 ghostPicture : Game -> Ghost -> List Batch
 ghostPicture game ghost =
-  let (x, y) = position ghost.actor
-      eyes = case ghost.state of Eyes => True; _ => False
+  let point = ghostPosition ghost
+      (x, y) = (cast point.x / 32 + 4, cast point.y / 32 + 28)
+      eyes = isReturning ghost
       scared = isFrightened game ghost
       flash = isFlashing game ghost
       offsets : List Double = if ghost.actor.tile.y == 14 then [-224, 0, 224] else [0]

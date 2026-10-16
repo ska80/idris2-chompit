@@ -7,8 +7,8 @@ include ordinary dots and power pellets.
 
 `Chompit.Game` applies these rules without SDL or file access.  `test/src/Arcade.idr` tests their
 boundaries, including later levels and recovery after death.  `test/src/GhostTiming.idr` tests
-delayed reversals and warning colors.  This is a rule model, not an emulator of the original
-hardware.
+delayed reversals and warning colors.  `test/src/House.idr` tests house paths, position continuity,
+and revival.  This is a rule model, not an emulator of the original hardware.
 
 ## Movement speeds
 
@@ -26,11 +26,11 @@ A dot stops the player for one update, and a power pellet stops it for three upd
 produce the lower average speed while eating.  The game does not also apply a separate dot-speed
 multiplier.  Tunnel speed takes priority over frightened speed for ghosts.
 
-A tile is an eight-pixel square of the maze.  Movement uses units of 1/256 tile at 60 updates per
-second.  `speedStep` distributes fractional movement over 99 updates instead of rounding every
-update to the same integer.  At a constant speed, every uninterrupted 99-update interval covers the
-same distance.  This preserves the average reference speed without copying the arcade machine's
-pixel movement pattern.
+A tile is an eight-pixel square of the maze.  Coordinates start at `(0, 0)` in the maze's upper-left
+corner.  Movement uses units of 1/256 tile at 60 updates per second.  `speedStep` distributes
+fractional movement over 99 updates instead of rounding every update to the same integer.  At a
+constant speed, every uninterrupted 99-update interval covers the same distance.  This preserves the
+average reference speed without copying the arcade machine's pixel movement pattern.
 
 ## Scatter and chase
 
@@ -117,6 +117,28 @@ Ghosts normally turn left after leaving the house.  A mode reversal or power pel
 changes their eventual exit direction to the right.  Their release counts do not control the time
 needed to move through the door.
 
+## House paths
+
+Waiting ghosts move up and down between rows 13.5 and 14.5.  Cyan uses column 11.5, pink uses 13.5,
+and orange uses 15.5.  Pink initially faces down, while cyan and orange face up.  Red starts
+outside, centered above the door, and shares pink's lane when it returns.
+
+Release first moves a ghost sideways at its current height to column 13.5.  It then moves straight
+up through the center of the door at `(13.5, 11)`.  The ghost turns in its remembered exit direction
+without jumping to a tile center.
+
+Eyes follow the maze route to the entrance, align with the door, and descend to row 14.5.  They then
+move sideways to their own lane.  The body returns only at that point, and pellet release rules
+resume on the next update.  Entering eyes remain invulnerable and ignore reversal signals and power
+pellets.  The returning-eyes sound continues until all captured ghosts regain their bodies.
+
+Pacing and departure use 40% of the reference speed on every level.  Eyes move two pixels per
+update, including inside the house.  These rates and paths follow the [masonicGIT ghost
+implementation](https://github.com/masonicGIT/pacman/blob/master/src/Ghost.js) and its [house
+geometry](https://github.com/masonicGIT/pacman/blob/master/src/Map.js).  Chompit uses fractional
+movement rather than the original pixel-step pattern.  Remaining movement continues around bends,
+but revival ends the current movement update at the slot.
+
 ## Red's late-maze acceleration
 
 Cruise Elroy is Red's two-stage speed increase near maze completion.  The thresholds count pellets
@@ -172,7 +194,6 @@ Chompit deliberately keeps several simpler rules and presentation choices:
 - Turns occur at tile centers, without the arcade player's early cornering.
 - Ghosts choose junction exits on arrival instead of looking one tile ahead.
 - Collisions use distance between actors rather than tile comparisons.
-- Waiting ghosts remain still, and house exits and returning eyes use fixed speeds.
 - Frightened choices use Chompit's own repeatable random sequence, reset after death or a new level.
 - Fruit lasts a fixed ten seconds.
 - Five layouts repeat beyond level 256 without the arcade game's split-screen failure.

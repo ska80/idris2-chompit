@@ -259,10 +259,10 @@ restrictedUp : Maze -> Tile -> Bool
 restrictedUp maze tile = elem tile [At 12 11, At 15 11, At 12 23, At 15 23] &&
   canMove maze False tile West && canMove maze False tile East
 
--- Breadth-first distances let eaten ghosts return through the door, without
--- getting trapped in a greedy chase loop. The search visits at most 868 cells.
+-- Breadth-first distances guide eyes to the entrance. A separate path crosses
+-- the centered door and reaches the ghost's own slot. Visit at most 868 cells.
 homeMap : Maze -> SortedMap Int Int
-homeMap maze = visit 868 [(At 13 14, 0)] (insert (key (At 13 14)) 0 empty)
+homeMap maze = visit 868 [(houseEntrance, 0)] (insert (key houseEntrance) 0 empty)
   where
     visit : Nat -> List (Tile, Int) -> SortedMap Int Int -> SortedMap Int Int
     visit Z _ known = known

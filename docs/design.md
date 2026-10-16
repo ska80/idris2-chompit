@@ -21,6 +21,7 @@ terminate.  This does not prove that the game rules match the arcade machine.
 | `test/src/Main.idr` | Simulation, input, and audio transition tests |
 | `test/src/Arcade.idr` | Arcade speed tables, release counters, mode schedules, and turn restrictions |
 | `test/src/GhostTiming.idr` | Delayed reversals, movement remainders, and frightened flash schedules |
+| `test/src/House.idr` | House pacing, centered paths, revival, and returning-eyes audio |
 | `test/src/Intermissions.idr` | Scene timing, frozen round state, controls, and music transitions |
 | `tools/generate_audio.py` | Deterministic synthesis of eighteen WAV files |
 | `test/src/test_audio.py` | Audio format, signal level, repeat boundaries, and reproducibility tests |
@@ -42,8 +43,8 @@ collision distances wrap across those edges.
 Ghosts choose from legal directions in up, left, down, right order.  Equal target distances keep
 that order.  Normal ghosts avoid reversing except at a dead end or after a mode change.  Frightened
 ghosts use a deterministic pseudo-random choice, a repeatable sequence of direction choices.
-Returning eyes follow precomputed shortest distances to the house.  The house and its door block the
-player and hunting ghosts.
+Returning eyes follow precomputed shortest distances to `houseEntrance`, beside the door.  The house
+and its door block the player and hunting ghosts.
 
 `Ghost.reversePending` records a requested reversal.  `requestReverse` sets it without moving the
 ghost, and repeated requests before arrival share one reversal.  `moveGhost` applies it at the next
@@ -82,6 +83,28 @@ color from the remaining protection time, with fourteen updates per color.  The 
 ends with protection, and short durations truncate the first white interval.  Capture freezes hold
 the color even while the global frame count advances.  Eyes and revived bodies never flash under the
 current power pellet.
+
+## House movement
+
+`Ghost.housePosition` stores a separate point during pacing, departure, and entry.  It uses the same
+1/256-tile units as corridor movement, but permits positions between tile centerlines.  The actor
+still supplies a heading and tile for queries.  `ghostPosition` supplies the full position for
+drawing.  This point is managed Idris data, not a native buffer.
+
+A waypoint is a point where a path changes direction.  Each update follows at most four path
+segments.  The walker stops each segment at its waypoint and carries remaining movement into the
+next segment.  Waiting ghosts reverse at the upper and lower bounds.  Departing ghosts first reach
+the center column, then cross the door and resume corridor movement without a position jump.
+Departure clears `housePosition`.
+
+`Entering` keeps returning eyes on a separate path through the door and toward their own lane.
+`isReturning` includes both corridor eyes and entering eyes, so their appearance and warning sound
+continue until revival.  The body appears at the lower bound of its lane, faces up, and resists the
+current power pellet.  Release rules resume on the next update without changing stored counters.
+
+House movement uses 40% of the reference speed at every level.  Eyes use two pixels per update.
+Pause, ready countdowns, capture freezes, and intermissions hold the house positions.  Death, retry,
+and new levels restore the starting positions and headings.
 
 ## Mazes and level changes
 
@@ -126,9 +149,10 @@ rectangles instead of allocating more native buffers.  The score display remains
 frames show the usual banner.
 
 The smoke script holds its gameplay index while each scene runs.  It records all four quarters of
-each scene and adds a fifteen-frame pause.  Both native runs therefore render 2,185 frames,
-including three complete intermissions.  The [arcade rule notes](arcade-rules.md#intermissions) list
-the scene schedule and intentional differences.
+each scene and adds a fifteen-frame pause.  Both native runs render 2,385 frames, including three
+complete intermissions.  The final segment follows all four ghosts through entry, revival, and
+departure, with the side ghosts released on separate updates.  The [arcade rule
+notes](arcade-rules.md#intermissions) list the scene schedule and intentional differences.
 
 ## Saved high scores
 
@@ -163,7 +187,8 @@ Pausing holds every track at its current position, and muting changes only the m
 `huntingSpeed` supplies both ghost movement and siren selection.  The four sirens cover speed bands
 up to 75%, 85%, 95%, and 105% of the reference speed.  Red's late-maze acceleration can raise the
 siren, but temporary tunnel slowdowns do not.  Returning eyes override frightened audio, which
-overrides the normal siren.  Once all eyes reach the house, the current warning resumes.
+overrides the normal siren.  Once all eyes reach their own house slots and regain their bodies, the
+current warning resumes.
 
 Intermissions use one separate eight-second music loop without gameplay music or warnings.
 Completion and skipping fade it out over 80 milliseconds.  Pause holds its playback position, and

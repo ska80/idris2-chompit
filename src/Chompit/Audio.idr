@@ -73,7 +73,7 @@ sirenName game =
       if speed <= 95 then "siren-faster" else "siren-fastest"
 
 warningLoop : Game -> String
-warningLoop game = if any (\ghost => case ghost.state of Eyes => True; _ => False) game.ghosts
+warningLoop game = if any isReturning game.ghosts
   then "eyes" else if game.frightened > 0 then "frightened" else sirenName game
 
 ambientLoops : Game -> List String

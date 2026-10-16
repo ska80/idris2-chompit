@@ -89,8 +89,8 @@ dots, with different counts in the other layouts.  Power pellets turn ghosts blu
 time, with white flashes before protection ends.  The flash count follows the level number.
 
 Consecutive captures score 200, 400, 800, then 1,600 points.  Captured eyes return to the house and
-regain their bodies.  Revived ghosts resist the current power pellet, but another power pellet
-removes that protection.
+regain their bodies at their own positions.  Revived ghosts resist the current power pellet, but
+another power pellet removes that protection.
 
 Red targets the player, and pink targets four tiles ahead.  Cyan uses the player's direction and
 red's position.  Orange chases from a distance and retreats when it gets close.  Ghosts alternate
@@ -100,9 +100,10 @@ the arcade game's upward look-ahead quirk.
 Normal ghosts cannot turn upward at four specific junctions in the classic maze.  The same
 restriction applies to matching junctions in the other layouts, but not to corners.
 
-Pellet counts control when ghosts leave the house.  A timer releases waiting ghosts if you stop
-eating.  Red speeds up twice near maze completion and then keeps chasing during scatter.  After
-level twenty, the player slows down again.
+Waiting ghosts move up and down inside the house.  Pellet counts control when they leave, and a
+timer releases them if you stop eating.  They move sideways to the door's center, then leave through
+it.  Red speeds up twice near maze completion and then keeps chasing during scatter.  After level
+twenty, the player slows down again.
 
 Mode changes and power pellets request a reversal at the next tile center.  Multiple requests before
 that arrival share one reversal.  Power pellets request reversals on every level, but provide no
@@ -156,6 +157,7 @@ The suite tests all five mazes, movement, ghost targets, collisions, scoring, ti
 automatic level changes, bonus icons, and audio transitions.  `test/src/Arcade.idr` adds
 speed-table, release-counter, mode-boundary, and restricted-turn tests.  `test/src/GhostTiming.idr`
 tests delayed reversals across all layouts and each level's complete warning sequence.
+`test/src/House.idr` tests house paths, movement boundaries, revival, and returning-eyes audio.
 `test/src/Intermissions.idr` tests scene timing, frozen game state, controls, and music transitions.
 
 Audio tests compare bundled WAV files with regenerated audio.  They also test warning-loop speeds,
@@ -163,9 +165,10 @@ the music level, and the join between repeats.  Score tests use temporary direct
 normal game through start, movement, and quit.  They do not touch your saved score.
 
 A smoke test runs a short scripted game with dummy SDL devices.  The audio and silent runs each draw
-2,185 frames through level thirteen, covering all layouts, bonus icons, warning loops, and retry.
+2,385 frames through level thirteen, covering all layouts, bonus icons, warning loops, and retry.
 They exercise delayed reversals and warning colors, then play all three intermissions to completion.
-Each scene includes pause and mute.
+Each scene includes pause and mute.  The final segment follows all four ghosts through house entry,
+revival, and departure.
 
 Smoke mode never reads or writes saved scores.  These runs do not assess sound quality or latency on
 speakers.  Run `make smoke` for those runs alone.

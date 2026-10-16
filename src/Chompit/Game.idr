@@ -33,13 +33,53 @@ record Game where
 freshCounters : ReleaseCounters
 freshCounters = MkReleaseCounters 0 0 0 Nothing 0 False
 
+export
+actorPosition : Actor -> Tile
+actorPosition actor = plus (scaled 256 actor.tile) (scaled actor.progress (delta actor.heading))
+
+export
+ghostPosition : Ghost -> Tile
+ghostPosition ghost = case ghost.state of
+  Hunting => actorPosition ghost.actor
+  Eyes => actorPosition ghost.actor
+  _ => fromMaybe (actorPosition ghost.actor) ghost.housePosition
+
+export
+isReturning : Ghost -> Bool
+isReturning ghost = case ghost.state of Eyes => True; Entering => True; _ => False
+
+export
+houseDoorPosition : Tile
+houseDoorPosition = plus (scaled 256 houseEntrance) (At 128 0)
+
+export
+houseTop, houseBottom : Int
+houseTop = 13 * 256 + 128
+houseBottom = 14 * 256 + 128
+
+export
+houseSeat : Identity -> Tile
+houseSeat identity = At ((case identity of Cyan => 11; Orange => 15; _ => 13) * 256 + 128) (14 * 256)
+
+houseActor : Tile -> Direction -> Actor
+houseActor point heading = MkActor (At (point.x `div` 256) (point.y `div` 256)) heading 0
+
+placeHouse : Tile -> Direction -> Ghost -> Ghost
+placeHouse point heading ghost =
+  { actor := houseActor point heading, housePosition := Just point, reversePending := False } ghost
+
 initialGhosts : List Ghost
 initialGhosts =
-  [ MkGhost Red (MkActor (At 13 11) West 0) Hunting False False
-  , MkGhost Pink (MkActor (At 13 14) North 0) (InPen West) False False
-  , MkGhost Cyan (MkActor (At 11 14) North 0) (InPen West) False False
-  , MkGhost Orange (MkActor (At 15 14) North 0) (InPen West) False False
+  [ MkGhost Red (MkActor (At 14 11) West 128) Hunting False False Nothing
+  , inside Pink South
+  , inside Cyan North
+  , inside Orange North
   ]
+  where
+    inside : Identity -> Direction -> Ghost
+    inside identity heading =
+      let point = houseSeat identity
+       in MkGhost identity (houseActor point heading) (InPen West) False False (Just point)
 
 export
 newGame : Game
@@ -101,6 +141,7 @@ requestReverse ghost = case ghost.state of
   InPen _ => { state := InPen East, reversePending := False } ghost
   Leaving _ => { state := Leaving East, reversePending := False } ghost
   Eyes => { reversePending := False } ghost
+  Entering => { reversePending := False } ghost
 
 export
 command : Command -> Game -> Game
@@ -231,9 +272,7 @@ pick (S n) (_ :: xs) = pick n xs
 
 export
 isFrightened : Game -> Ghost -> Bool
-isFrightened game ghost = case ghost.state of
-  Eyes => False
-  _ => game.frightened > 0 && not ghost.revived
+isFrightened game ghost = not (isReturning ghost) && game.frightened > 0 && not ghost.revived
 
 export
 ghostTarget : Game -> Ghost -> Tile
@@ -241,14 +280,16 @@ ghostTarget game ghost =
   if isScatter game.level game.modeTicks && not (ghost.identity == Red && elroyStage game > 0)
     then corner ghost.identity else chaseTarget game ghost
 
+-- House paths set their headings separately from corridor steering.
 export
 ghostDirection : Game -> Ghost -> Actor -> Direction
 ghostDirection game ghost actor = case ghost.state of
-  Eyes => best (\d => fromMaybe 9999 (lookup (key (neighbor actor.tile d)) game.maze.homeDistances))
-               actor.heading (choices game.maze True True actor)
-  InPen _ => North
-  Leaving _ => best (\d => distanceSquared (neighbor actor.tile d) (At 13 11))
-                    actor.heading (choices game.maze True False actor)
+  Eyes => if actor.tile == houseEntrance then East else
+    best (\d => fromMaybe 9999 (lookup (key (neighbor actor.tile d)) game.maze.homeDistances))
+         actor.heading (choices game.maze True True actor)
+  Entering => actor.heading
+  InPen _ => actor.heading
+  Leaving _ => actor.heading
   Hunting => if isFrightened game ghost
     then let available = choices game.maze False False actor
              index : Nat = cast ((game.seed + cast (key actor.tile)) `mod` cast (max 1 (length available)))
@@ -258,13 +299,15 @@ ghostDirection game ghost actor = case ghost.state of
           in best (\d => distanceSquared (neighbor actor.tile d) (ghostTarget game ghost))
                   actor.heading available
 
--- House and eyes motion remains separate from the roaming speed table.
+-- House motion uses the first-level tunnel rate on every level.
+-- Returning eyes travel at two pixels per update, including inside the house.
 export
 ghostSpeed : Game -> Ghost -> Int
 ghostSpeed game ghost = case ghost.state of
-  Eyes => 88
-  Leaving _ => 30
-  InPen _ => 0
+  Eyes => 64
+  Entering => 64
+  Leaving _ => speedStep 40 game.frame
+  InPen _ => speedStep 40 game.frame
   Hunting =>
     let percent = if ghost.actor.tile.y == 14 && (ghost.actor.tile.x < 6 || ghost.actor.tile.x > 21)
           then (if game.level <= 1 then 40 else if game.level < 5 then 45 else 50)
@@ -273,19 +316,76 @@ ghostSpeed game ghost = case ghost.state of
             else huntingSpeed game ghost.identity
      in speedStep percent game.frame
 
+-- Move toward one axis-aligned waypoint without passing it.
+-- The remainder can continue around a bend in the same update.
+moveTo : Int -> Tile -> Ghost -> (Ghost, Int, Bool)
+moveTo budget target ghost =
+  let point = ghostPosition ghost
+      heading = if point.x < target.x then East else if point.x > target.x then West
+                else if point.y > target.y then North else South
+      distance = abs (target.x - point.x) + abs (target.y - point.y)
+      used = min (max 0 budget) distance
+      moved = placeHouse (plus point (scaled used (delta heading))) heading ghost
+   in (moved, max 0 (budget - used), used == distance)
+
+-- Four segments suffice for an update: speeds are smaller than each full
+-- bounce or house lane. The explicit bound keeps malformed inputs total too.
+moveHouse : Nat -> Int -> Ghost -> Ghost
+moveHouse Z budget ghost = ghost
+moveHouse (S fuel) budget ghost =
+  let point = ghostPosition ghost in case ghost.state of
+    InPen _ =>
+      let heading = if ghost.actor.heading == South then South else North
+          target = At point.x (if heading == North then houseTop else houseBottom)
+          (moved, left, arrived) = moveTo budget target ghost
+       in if arrived then moveHouse fuel left
+            (placeHouse target (opposite heading) moved) else moved
+    Leaving exit =>
+      if point == houseDoorPosition then
+        let actor = if exit == East then MkActor houseEntrance East (128 + budget)
+                    else MkActor (neighbor houseEntrance East) West (128 + budget)
+         in { actor := actor, state := Hunting, housePosition := Nothing, reversePending := False } ghost
+      else let target = if point.x /= houseDoorPosition.x then At houseDoorPosition.x point.y
+                        else houseDoorPosition
+               (moved, left, arrived) = moveTo budget target ghost
+            in if arrived then moveHouse fuel left moved else moved
+    Entering =>
+      let seat = At (houseSeat ghost.identity).x houseBottom in
+        if point == seat then
+          { state := InPen West, revived := True } (placeHouse seat North ghost)
+        else let target = if point.y == houseDoorPosition.y && point.x /= houseDoorPosition.x
+                            then houseDoorPosition
+                          else if point.y /= houseBottom then At point.x houseBottom
+                          else seat
+                 (moved, left, arrived) = moveTo budget target ghost
+              in if arrived then moveHouse fuel left moved else moved
+    _ => ghost
+
+atHouseEntry : Maze -> Ghost -> Bool
+atHouseEntry maze ghost =
+  let point = ghostPosition ghost
+   in (point.y == houseDoorPosition.y && point.x >= houseEntrance.x * 256 &&
+       point.x <= (houseEntrance.x + 1) * 256) ||
+      elem (cellAt maze ghost.actor.tile) ['-', 'h']
+
+enterHouse : Ghost -> Ghost
+enterHouse ghost = { state := Entering }
+  (placeHouse (ghostPosition ghost) ghost.actor.heading ghost)
+
 export
 moveGhost : Game -> Ghost -> Ghost
 moveGhost game ghost = case ghost.state of
-  InPen _ => { reversePending := False } ghost
-  Eyes => if ghost.actor.tile == At 13 14 then
-            { actor := MkActor (At 13 14) North 0, state := InPen West,
-              revived := True, reversePending := False } ghost
-          else advance True ghost
-  Leaving exit => if ghost.actor.tile == At 13 11 then
-                    { actor := MkActor (At 13 11) exit 0, state := Hunting, reversePending := False } ghost
-                  else advance True ghost
+  InPen _ => house ghost
+  Leaving _ => house ghost
+  Entering => house ghost
+  Eyes => if atHouseEntry game.maze ghost then house (enterHouse ghost)
+          else let moved = advance True ghost
+                in if atHouseEntry game.maze moved then enterHouse moved else moved
   Hunting => advance False ghost
   where
+    house : Ghost -> Ghost
+    house ghost = moveHouse 4 (ghostSpeed game ghost) ghost
+
     advance : Bool -> Ghost -> Ghost
     advance house ghost =
       let here = ghost.actor.tile
@@ -300,10 +400,6 @@ moveGhost game ghost = case ghost.state of
        -- Keep a hunter's chosen direction, even when its arrival remainder is zero.
        -- A queued reversal uses the incoming direction, before any junction turn.
        in { actor := moved, reversePending := pending && moved.tile == here } ghost
-
-export
-actorPosition : Actor -> Tile
-actorPosition actor = plus (scaled 256 actor.tile) (scaled actor.progress (delta actor.heading))
 
 export
 touching : Actor -> Actor -> Bool
@@ -366,9 +462,8 @@ fruitValue level = case fruitForLevel level of
   KeyFruit => 5000
 
 energizeGhost : Ghost -> Ghost
-energizeGhost ghost = case ghost.state of
-  Eyes => { reversePending := False } ghost
-  _ => requestReverse ({ revived := False } ghost)
+energizeGhost ghost = if isReturning ghost then { reversePending := False } ghost
+                      else requestReverse ({ revived := False } ghost)
 
 export
 releaseLimit : Int -> Identity -> Int
@@ -475,7 +570,7 @@ collisions game = resolve game.ghosts [] game
       Hunting => if not (touching state.player ghost.actor) then resolve rest (ghost :: done) state
         else if isFrightened state ghost then
           let points = fromMaybe 1600 (pick (cast state.chain) [200, 400, 800, 1600])
-              eaten : Ghost = { state := Eyes, reversePending := False } ghost
+              eaten : Ghost = { state := Eyes, reversePending := False, housePosition := Nothing } ghost
               scored = addCue GhostEaten $ addScore points
                 ({ chain := state.chain + 1, freeze := 30,
                    popup := Just (ghost.actor.tile, points, 90) } state)
