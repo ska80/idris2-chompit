@@ -109,6 +109,8 @@ smokeInput 610 game = { phase := Clearing 1 } game
 smokeInput 620 game = { phase := Ready 1, fruitTime := 300 } game
 smokeInput 630 game = { phase := Clearing 1 } game
 smokeInput 640 game = { phase := Ready 1, fruitTime := 300 } game
+smokeInput 644 game = { remaining := 80 } game
+smokeInput 647 game = { remaining := 40 } game
 smokeInput 650 game = { phase := GameOver, sounds := [FruitEaten, BonusLife] } game
 smokeInput 670 game = command Start game
 smokeInput 680 game = { phase := Ready 1 } game

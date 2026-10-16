@@ -1,5 +1,6 @@
 module Main
 
+import Arcade
 import Chompit.Types
 import Chompit.Maze
 import Chompit.Game
@@ -156,7 +157,7 @@ ghostTests =
       far = { identity := Orange } red
       near = MkGhost Orange (MkActor (At 13 20) West 0) Hunting False
       active = { phase := Playing } newGame
-      pen = advance 61 active
+      pen = step active
       power = step ({ ghosts := [{ actor := MkActor (At 6 5) East 120 } red] } (atTile (At 1 3)))
    in [ ("Red targets the player", chaseTarget game red == At 12 20)
       , ("Pink targets four tiles ahead", chaseTarget game pink == At 16 20)
@@ -164,8 +165,8 @@ ghostTests =
       , ("Cyan doubles the vector from red to two tiles ahead", chaseTarget game cyan == At 15 29)
       , ("Orange chases from a distance", chaseTarget game far == At 12 20)
       , ("Orange retreats when the player is near", chaseTarget game near == At 0 33)
-      , ("Scatter and chase use timed phases", isScatter 0 && not (isScatter 420) && isScatter 1620 && not (isScatter 5040))
-      , ("Ghosts leave the pen after their release delay", any (\g => case g.state of Leaving => True; _ => False) pen.ghosts)
+      , ("Scatter and chase use timed phases", isScatter 1 0 && not (isScatter 1 420) && isScatter 1 1620 && not (isScatter 1 5040))
+      , ("Pink leaves the pen without waiting for pellets", any (\g => case g.state of Leaving _ => g.identity == Pink; _ => False) pen.ghosts)
       , ("A power pellet reverses hunting ghosts", maybe False (\g => g.actor.heading == West) (firstGhost power))
       , ("Frightened time pauses the scatter clock", (step ({ frightened := 100, modeTicks := 100 } playing)).modeTicks == 100)
       , ("Frightened time expires", (step ({ frightened := 1 } playing)).frightened == 0)
@@ -402,11 +403,11 @@ audioTests =
       , ("Retry waits for play before starting music", loopChanges over (command Start over) == ([], []))
       , ("The four sirens follow scheduled hunting speeds",
          map (\level => sirenName (freshLevel level)) [1..7] ==
-           ["siren", "siren-fast", "siren-fast", "siren-faster", "siren-faster", "siren-fastest", "siren-fastest"])
+           ["siren", "siren-fast", "siren-fast", "siren-fast", "siren-faster", "siren-faster", "siren-faster"])
       , ("Red's late-maze acceleration also raises the siren",
-         huntingSpeed playing Red == 38 && huntingSpeed ({ remaining := 29 } playing) Red == 42 &&
-         sirenName ({ remaining := 30 } playing) == "siren" &&
-         loopChanges playing ({ remaining := 29 } playing) == (["siren"], ["siren-fast"]))
+         huntingSpeed playing Red == 75 && huntingSpeed ({ remaining := 20 } playing) Red == 80 &&
+         sirenName ({ remaining := 21 } playing) == "siren" &&
+         loopChanges playing ({ remaining := 20 } playing) == (["siren"], ["siren-fast"]))
       , ("Returning eyes replace the warning without restarting music",
          loopChanges playing returning == (["siren"], ["eyes"]))
       , ("Eyes take priority over frightened audio",
@@ -414,7 +415,7 @@ audioTests =
       , ("The eyes loop remains while any ghost is returning",
          loopChanges returning ({ ghosts := [eyes, { identity := Pink } eyes] } returning) == ([], []))
       , ("Returned ghosts restore the current siren",
-         loopChanges returning ({ ghosts := [{ state := InPen 90 } eyes] } playing) == (["eyes"], ["siren"]))
+         loopChanges returning ({ ghosts := [{ state := InPen West } eyes] } playing) == (["eyes"], ["siren"]))
       , ("Remaining protection restores frightened audio after eyes return",
          loopChanges ({ ghosts := [eyes] } powered) powered == (["eyes"], ["frightened"]))
       , ("A speed change during frightened time keeps the same warning",
@@ -476,7 +477,7 @@ runTests ((name, passed) :: rest) = do
 runSuite : IO ()
 runSuite = do
   let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++
-              levelTests ++ inputTests ++ audioTests ++ bonusTests ++ highScoreTests
+              levelTests ++ inputTests ++ audioTests ++ bonusTests ++ highScoreTests ++ arcadeTests
   runTests tests
   putStrLn (show (length tests) ++ " Chompit tests passed.")
 

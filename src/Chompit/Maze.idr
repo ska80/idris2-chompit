@@ -252,6 +252,13 @@ export
 canMove : Maze -> Bool -> Tile -> Direction -> Bool
 canMove maze house tile heading = walkable maze house (neighbor tile heading)
 
+-- Preserve the four classic no-up junctions, but not corners in other layouts.
+-- Both horizontal exits must exist so this rule cannot trap a hunting ghost.
+export
+restrictedUp : Maze -> Tile -> Bool
+restrictedUp maze tile = elem tile [At 12 11, At 15 11, At 12 23, At 15 23] &&
+  canMove maze False tile West && canMove maze False tile East
+
 -- Breadth-first distances let eaten ghosts return through the door, without
 -- getting trapped in a greedy chase loop. The search visits at most 868 cells.
 homeMap : Maze -> SortedMap Int Int

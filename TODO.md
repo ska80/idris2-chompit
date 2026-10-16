@@ -1,7 +1,5 @@
 # Remaining work
 
-- Match the arcade speed tables, pellet-based ghost release counters, and chase schedules after
-  level one.
-- Add the restricted upward ghost turns and remaining late-level behavior differences.
+- Match arcade cornering, delayed ghost reversals, house movement, and frightened warning flashes.
 - Add animated intermissions.
 - Test the audible mix and latency on real audio devices.

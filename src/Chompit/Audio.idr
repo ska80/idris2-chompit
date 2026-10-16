@@ -66,8 +66,8 @@ export
 sirenName : Game -> String
 sirenName game =
   let speed = huntingSpeed game Red
-   in if speed <= 38 then "siren" else if speed <= 42 then "siren-fast" else
-      if speed <= 46 then "siren-faster" else "siren-fastest"
+   in if speed <= 75 then "siren" else if speed <= 85 then "siren-fast" else
+      if speed <= 95 then "siren-faster" else "siren-fastest"
 
 warningLoop : Game -> String
 warningLoop game = if any (\ghost => case ghost.state of Eyes => True; _ => False) game.ghosts

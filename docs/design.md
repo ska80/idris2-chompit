@@ -19,6 +19,7 @@ terminate.  This does not prove that the game rules match the arcade machine.
 | `src/Chompit/Audio.idr` | Reusable mixer tracks, sound cues, loops, pause, and mute |
 | `src/Main.idr` | Options, resource scopes, event polling, frame timing, and smoke scenarios |
 | `test/src/Main.idr` | Simulation, input, and audio transition tests |
+| `test/src/Arcade.idr` | Arcade speed tables, release counters, mode schedules, and turn restrictions |
 | `tools/generate_audio.py` | Deterministic synthesis of seventeen WAV files |
 | `test/src/test_audio.py` | Audio format, signal level, repeat boundaries, and reproducibility tests |
 | `test/src/test_high_score.py` | Isolated score-file and process-restart tests |
@@ -41,6 +42,24 @@ that order.  Normal ghosts avoid reversing except at a dead end or after a mode 
 ghosts use a deterministic pseudo-random choice, a repeatable sequence of direction choices.
 Returning eyes follow precomputed shortest distances to the house.  The house and its door block the
 player and hunting ghosts.
+
+`restrictedUp` excludes four upward turns for normal ghosts.  It requires both horizontal exits, so
+the restriction cannot block a corner in an original layout.
+
+`playerSpeed` and `huntingSpeed` return percentages of the reference arcade speed.  `speedStep`
+converts a percentage to movement units for the current update.  Its 99-update pattern preserves
+fractional speed without floating-point positions.  The siren uses the percentage, not the changing
+per-update distance.  `isScatter` takes both a level number and elapsed mode time.
+
+`ReleaseCounters` stores three personal pellet counts, an optional shared count, and the idle timer.
+Death enables the shared count but preserves personal counts.  Each new level resets all counts.
+The record also holds the temporary block on Red's acceleration after death.  House states retain
+the direction to take after leaving the door, rather than a fixed release delay.
+
+Each active update handles satisfied release counts before player movement.  It counts a newly eaten
+pellet and handles releases again afterward.  This frees zero-limit ghosts before counting for the
+next ghost.  The idle timeout runs after consumption, so a pellet on that update cancels it.  See
+[arcade rules](arcade-rules.md) for the source tables and intentional differences.
 
 `Game` contains all mutable game state as an immutable value.  An update returns a new value and
 appends sound cues to it.  The main loop plays the cues once, then clears them.  Score popups,
@@ -101,10 +120,10 @@ playback positions, so changing a warning never restarts the music.  Gameplay mu
 80 milliseconds when active play ends.  The next period of play starts the music from the beginning.
 Pausing holds every track at its current position, and muting changes only the mixer output level.
 
-`huntingSpeed` supplies both ghost movement and siren selection.  The four sirens cover speeds up to
-38, 42, 46, and 50 movement units per update.  Red's late-maze acceleration also raises the siren,
-but temporary tunnel slowdowns do not.  Returning eyes override frightened audio, which overrides
-the normal siren.  Once all eyes reach the house, the current warning resumes.
+`huntingSpeed` supplies both ghost movement and siren selection.  The four sirens cover speed bands
+up to 75%, 85%, 95%, and 105% of the reference speed.  Red's late-maze acceleration can raise the
+siren, but temporary tunnel slowdowns do not.  Returning eyes override frightened audio, which
+overrides the normal siren.  Once all eyes reach the house, the current warning resumes.
 
 All seventeen tracks and their looping options are created before the frame loop.  The fade duration
 uses the music file's sample rate, including when a custom asset directory supplies a different

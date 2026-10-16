@@ -72,7 +72,8 @@ Eq Identity where
   _ == _ = False
 
 public export
-data GhostState = Hunting | InPen Int | Leaving | Eyes
+-- House states remember the direction to take after crossing the door.
+data GhostState = Hunting | InPen Direction | Leaving Direction | Eyes
 
 public export
 record Ghost where
@@ -81,6 +82,14 @@ record Ghost where
   actor : Actor
   state : GhostState
   revived : Bool
+
+public export
+record ReleaseCounters where
+  constructor MkReleaseCounters
+  pinkDots, cyanDots, orangeDots : Int
+  globalDots : Maybe Int
+  idleTicks : Int
+  elroyWaiting : Bool
 
 public export
 data Fruit = Cherries | Strawberry | OrangeFruit | Apple | Melon | Galaxian | Bell | KeyFruit

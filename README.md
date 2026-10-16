@@ -14,9 +14,11 @@ bitmap font.  The repository includes original arcade-style effects, title and g
 short musical cues in `assets/sounds/`.  A Python script can regenerate these files.  No ROM,
 sampled arcade audio, external font, or downloaded asset is required.
 
-This is a playable first version, not a cycle-accurate reproduction.  Ghost release timers and some
-level rules differ from the arcade game.  The generated melodies and waveforms are original, not
-exact copies.  Remaining fidelity work is listed in [TODO.md](TODO.md).
+Chompit follows the arcade speed tables, pellet-based ghost releases, and later-level chase
+schedules.  It is not a cycle-accurate reproduction.  Turning, collisions, and animation still use
+simpler rules.  The generated melodies and waveforms are original, not exact copies.  See [arcade
+rules](docs/arcade-rules.md) for the tables and differences, and [TODO.md](TODO.md) for remaining
+work.
 
 ## Build and play
 
@@ -92,6 +94,14 @@ red's position.  Orange chases from a distance and retreats when it gets close. 
 between chase and scatter, a mode that targets their home corners.  The pink and cyan targets retain
 the arcade game's upward look-ahead quirk.
 
+Normal ghosts cannot turn upward at four specific junctions in the classic maze.  The same
+restriction applies to matching junctions in the other layouts, but not to corners.
+
+Pellet counts control when ghosts leave the house.  A timer releases waiting ghosts if you stop
+eating.  Red speeds up twice near maze completion and then keeps chasing during scatter.  After
+level twenty, the player slows down again.  Power pellets reverse ghosts on every level, but they
+provide no protection at level seventeen or from level nineteen onward.
+
 You start with three lives and earn one extra life at 10,000 points.  Bonus fruit appears after 70
 and 170 pellets, and disappears after ten seconds.  Its value and artwork follow eight bonus tiers,
 from cherries to the key.  The maze bonus and the icon below the maze always show the current tier.
@@ -131,10 +141,11 @@ tests depend on the `chompit` package and build into `test/build/`.  `make clean
 game and test build output.
 
 The suite tests all five mazes, movement, ghost targets, collisions, scoring, timers, input mapping,
-automatic level changes, bonus icons, and audio transitions.  Audio tests compare bundled WAV files
-with regenerated audio.  They also test warning-loop speeds, the music level, and the join between
-repeats.  Score tests use temporary directories and drive the normal game through start, movement,
-and quit.  They do not touch your saved score.
+automatic level changes, bonus icons, and audio transitions.  `test/src/Arcade.idr` adds
+speed-table, release-counter, mode-boundary, and restricted-turn tests.  Audio tests compare bundled
+WAV files with regenerated audio.  They also test warning-loop speeds, the music level, and the join
+between repeats.  Score tests use temporary directories and drive the normal game through start,
+movement, and quit.  They do not touch your saved score.
 
 A smoke test runs a short scripted game with dummy SDL devices.  The audio and silent runs each draw
 700 frames through level thirteen, covering all layouts, bonus icons, warning loops, and retry.
