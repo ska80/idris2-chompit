@@ -13,12 +13,16 @@ terminate.  This does not prove that the game rules match the arcade machine.
 | `src/Chompit/Game.idr` | Movement, ghost decisions, timers, collisions, score, and level changes |
 | `src/Chompit/Input.idr` | SDL events to game commands |
 | `src/Chompit/Font.idr` | Original 5 × 7 bitmap alphabet |
+| `src/Chompit/Fruit.idr` | Original 16 × 16 artwork for eight bonus tiers |
+| `src/Chompit/HighScore.idr` | Score-file parsing, storage paths, and checkpoint writes |
 | `src/Chompit/Render.idr` | Wall outlines, sprites, text, and rectangle batches |
 | `src/Chompit/Audio.idr` | Reusable mixer tracks, sound cues, loops, pause, and mute |
 | `src/Main.idr` | Options, resource scopes, event polling, frame timing, and smoke scenarios |
 | `test/src/Main.idr` | Simulation, input, and audio transition tests |
-| `tools/generate_audio.py` | Deterministic synthesis of thirteen WAV files |
+| `tools/generate_audio.py` | Deterministic synthesis of seventeen WAV files |
 | `test/src/test_audio.py` | Audio format, signal level, repeat boundaries, and reproducibility tests |
+| `test/src/test_high_score.py` | Isolated score-file and process-restart tests |
+| `test/src/score_input.c` | SDL keyboard and quit events for normal-path score tests |
 
 ## Simulation and movement
 
@@ -67,18 +71,42 @@ After level five, layouts repeat while the level number continues to increase.  
 and power-pellet duration still use that level number.  This layout cycle is an intentional
 difference from the arcade game.
 
+## Saved high scores
+
+`Chompit.HighScore` keeps file access outside the simulation.  It selects an absolute state
+directory from `XDG_STATE_HOME`, with `$HOME/.local/state` as the fallback.  It reads at most 65
+bytes and accepts one nonnegative decimal integer that fits an Idris `Int`.  Files larger than 64
+bytes or containing invalid data load as zero.  Unreadable storage disables persistence for the
+session and prints a warning.
+
+The loop saves new records at death, level completion, pause, or exit, not after each pellet.
+Before writing, the store reads the existing score again and keeps the larger value.  It exclusively
+creates a temporary file beside the score, flushes the write, then replaces the old file with one
+rename.  A failed write preserves the previous file and disables further saves for that run.  The
+Linux C library supplies the file operations that the Idris standard library does not expose.
+
+Temporary names include the process ID, and exclusive creation rejects existing files and symlinks.
+Simultaneous saves from different processes are not coordinated.  The store does not guarantee
+recovery after a power failure.  `--no-save` and `--smoke` skip both score reads and writes.
+
 ## Audio
 
 The title screen uses its own music loop.  Active play mixes a quiet 32-second music loop with the
-normal siren or the power-pellet warning loop.  The generated music uses soft tones and leaves room
-for the existing effects.  This background music is an intentional addition to the arcade rules.
+normal siren, power-pellet warning, or returning-eyes warning.  The generated music uses soft tones
+and leaves room for the existing effects.  This background music is an intentional addition to the
+arcade rules.
 
 `loopChanges` lists the loops to stop and start after a game update.  Shared loops keep their
-playback positions, so a power pellet changes only the warning loop.  Gameplay music fades out over
+playback positions, so changing a warning never restarts the music.  Gameplay music fades out over
 80 milliseconds when active play ends.  The next period of play starts the music from the beginning.
 Pausing holds every track at its current position, and muting changes only the mixer output level.
 
-All thirteen tracks and their looping options are created before the frame loop.  The fade duration
+`huntingSpeed` supplies both ghost movement and siren selection.  The four sirens cover speeds up to
+38, 42, 46, and 50 movement units per update.  Red's late-maze acceleration also raises the siren,
+but temporary tunnel slowdowns do not.  Returning eyes override frightened audio, which overrides
+the normal siren.  Once all eyes reach the house, the current warning resumes.
+
+All seventeen tracks and their looping options are created before the frame loop.  The fade duration
 uses the music file's sample rate, including when a custom asset directory supplies a different
 format.  Tracks retain their decoded audio until cleanup.
 

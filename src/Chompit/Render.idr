@@ -4,6 +4,7 @@ import Chompit.Types
 import Chompit.Maze
 import Chompit.Game
 import Chompit.Font
+import Chompit.Fruit
 
 import SDL3
 import SDL3.Scoped
@@ -163,13 +164,14 @@ ghostPicture game ghost =
       offsets : List Double = if ghost.actor.tile.y == 14 then [-224, 0, 224] else [0]
    in concatMap (\offset => ghostAt game.frame scared flash eyes ghost.identity ghost.actor.heading (x + offset) y) offsets
 
-fruitPicture : Double -> Double -> List Batch
-fruitPicture x y =
-  [ Ink red [MkFRect (x - 5) y 5 5, MkFRect (x + 1) (y + 2) 5 5]
-  , Ink (MkColor 0 255 0 255) [MkFRect (x - 2) (y - 4) 1 5, MkFRect (x - 1) (y - 5) 6 1,
-                              MkFRect (x + 4) (y - 4) 1 7]
-  , Ink white [MkFRect (x - 4) (y + 1) 1 1, MkFRect (x + 2) (y + 3) 1 1]
-  ]
+fruitPicture : Fruit -> Double -> Double -> List Batch
+fruitPicture fruit x y =
+  let palette = [('r', red), ('g', MkColor 0 255 0 255), ('w', white),
+                 ('o', orange), ('y', yellow), ('c', cyan), ('b', blue)]
+      cells = concatMap (\(row, text) => map (\(column, symbol) =>
+                (symbol, MkFRect (x - 8 + cast column) (y - 8 + cast row) 1 1))
+                  (zip [0..15] (unpack text))) (zip [0..15] (fruitSprite fruit))
+   in map (\(symbol, ink) => Ink ink (map snd (filter (\cell => fst cell == symbol) cells))) palette
 
 foodPicture : Game -> List Batch
 foodPicture game =
@@ -181,7 +183,7 @@ foodPicture game =
          in [MkFRect (x - 3) (y - 2) 6 4, MkFRect (x - 2) (y - 3) 4 6]) (Prelude.toList game.powers)
         else []
    in [Ink pellet (dots ++ powers), Ink pink [MkFRect 104 124 16 2]] ++
-      (if game.fruitTime > 0 then fruitPicture 108 164 else [])
+      (if game.fruitTime > 0 then fruitPicture (fruitForLevel game.level) 108 164 else [])
 
 actorsPicture : Game -> List Batch
 actorsPicture game =
@@ -206,7 +208,7 @@ hud game muted =
   , label white 13 12 1 (show game.score), label white 117 12 1 (show game.highScore)
   , label white 164 278 1 ("L" ++ show game.level)
   ] ++ map (\i => chomper (16 + cast i * 16) 281 West 0.6) [0 .. min 4 (game.lives - 2)] ++
-  (if muted then [label pink 94 278 1 "MUTE"] else []) ++ fruitPicture 211 278
+  (if muted then [label pink 94 278 1 "MUTE"] else []) ++ fruitPicture (fruitForLevel game.level) 211 280
 
 panel : Double -> Double -> Double -> Double -> Batch
 panel x y w h = Ink black [MkFRect x y w h]

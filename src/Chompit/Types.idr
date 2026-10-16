@@ -83,6 +83,21 @@ record Ghost where
   revived : Bool
 
 public export
+data Fruit = Cherries | Strawberry | OrangeFruit | Apple | Melon | Galaxian | Bell | KeyFruit
+
+public export
+Eq Fruit where
+  Cherries == Cherries = True
+  Strawberry == Strawberry = True
+  OrangeFruit == OrangeFruit = True
+  Apple == Apple = True
+  Melon == Melon = True
+  Galaxian == Galaxian = True
+  Bell == Bell = True
+  KeyFruit == KeyFruit = True
+  _ == _ = False
+
+public export
 data Phase = Title | Ready Int | Playing | Dying Int | Clearing Int | GameOver
 
 public export

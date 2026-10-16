@@ -38,6 +38,7 @@ test: all
 	$(PACK_CHEZ) build test/chompit-test.ipkg
 	./test/build/exec/chompit-test
 	$(PYTHON) test/src/test_audio.py
+	$(PYTHON) test/src/test_high_score.py
 	$(MAKE) smoke
 
 smoke: all

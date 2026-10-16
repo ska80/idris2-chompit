@@ -50,7 +50,7 @@ def mix(first, second):
     return result
 
 
-def siren(base, depth, seconds, cycles):
+def siren(base, depth, seconds, cycles, gain=0.18):
     samples = []
     phase = 0.0
     count = round(seconds * RATE)
@@ -59,7 +59,7 @@ def siren(base, depth, seconds, cycles):
         frequency = base + depth * math.sin(TAU * cycles * t / seconds)
         phase += frequency / RATE
         edge = min(1.0, t / 0.004, (seconds - t) / 0.004)
-        samples.append(0.18 * math.sin(TAU * phase) * max(0.0, edge))
+        samples.append(gain * math.sin(TAU * phase) * max(0.0, edge))
     return samples
 
 
@@ -157,7 +157,11 @@ def sounds():
         "fruit": melody([(79, 1), (84, 1), (88, 2)], 0.07),
         "extra-life": melody([(76, 1), (79, 1), (84, 1), (88, 1), (84, 2)], 0.1),
         "siren": siren(360, 110, 1.0, 2),
+        "siren-fast": siren(420, 110, 0.8, 2),
+        "siren-faster": siren(480, 110, 2 / 3, 2),
+        "siren-fastest": siren(540, 110, 0.5, 2),
         "frightened": siren(145, 65, 0.8, 6),
+        "eyes": siren(880, 260, 0.6, 6, 0.14),
     }
 
 

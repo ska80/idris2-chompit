@@ -78,7 +78,8 @@ between junctions.  The game pauses when its window loses keyboard focus.  Press
 you return.  The resizable window preserves the 224 × 288 display proportions.
 
 A quiet music loop accompanies active play.  It fades out after death or level completion.  P pauses
-the music with the game, and M mutes music and effects together.
+the music with the game, and M mutes music and effects together.  Four siren variants follow the red
+ghost's hunting speed.  A separate warning plays while captured eyes return to the house.
 
 Dots score 10 points, and each maze has four power pellets worth 50 points.  The first maze has 240
 dots, with different counts in the other layouts.  Power pellets turn hunting ghosts blue for a
@@ -92,13 +93,30 @@ between chase and scatter, a mode that targets their home corners.  The pink and
 the arcade game's upward look-ahead quirk.
 
 You start with three lives and earn one extra life at 10,000 points.  Bonus fruit appears after 70
-and 170 pellets, and disappears after ten seconds.  Its value increases with the level.  The high
-score survives retries in the same process, but is not saved to disk.
+and 170 pellets, and disappears after ten seconds.  Its value and artwork follow eight bonus tiers,
+from cherries to the key.  The maze bonus and the icon below the maze always show the current tier.
 
 Collect every dot and power pellet to complete a level.  After the completion animation, the game
 loads the next maze automatically and starts a short ready countdown.  Your score and lives carry
 over.  After level five, the layouts repeat from the first maze.  The level number keeps rising, and
 difficulty does not reset.  A retry after game over starts at level one.
+
+## Saved high scores
+
+The game reads the saved high score at startup.  On Linux, it uses
+`$XDG_STATE_HOME/chompit/high-score`.  If `XDG_STATE_HOME` is unset, empty, or relative, it uses
+`$HOME/.local/state/chompit/high-score` instead.  The game saves new records after death, level
+completion, pause, or exit.
+
+Empty, malformed, oversized, and out-of-range score files load as zero.  If storage fails, the game
+prints a warning and keeps the high score in memory for that session.  The default score path stays
+outside the repository, and `make clean` preserves it.
+
+To play without reading or writing a saved score, run:
+
+```sh
+make run ARGS="--no-save"
+```
 
 ## Tests and source
 
@@ -108,18 +126,21 @@ Run the full local suite:
 make test
 ```
 
-The test package is `test/chompit-test.ipkg`, and its Idris and Python sources are in `test/src/`.
-The Idris tests depend on the `chompit` package and build into `test/build/`.  `make clean` removes
-both the game and test build output.
+The test package is `test/chompit-test.ipkg`, and all test sources are in `test/src/`.  The Idris
+tests depend on the `chompit` package and build into `test/build/`.  `make clean` removes both the
+game and test build output.
 
 The suite tests all five mazes, movement, ghost targets, collisions, scoring, timers, input mapping,
-automatic level changes, and audio transitions.  Audio tests compare bundled WAV files with
-regenerated audio.  They also test the music level and the join between repeats.
+automatic level changes, bonus icons, and audio transitions.  Audio tests compare bundled WAV files
+with regenerated audio.  They also test warning-loop speeds, the music level, and the join between
+repeats.  Score tests use temporary directories and drive the normal game through start, movement,
+and quit.  They do not touch your saved score.
 
 A smoke test runs a short scripted game with dummy SDL devices.  The audio and silent runs each draw
-560 frames, covering all five layouts, cycling after level five, and retry.  They also exercise
-music starts, pause, and mute.  These runs test drawing and audio calls, but do not assess sound
-quality on speakers.  Run `make smoke` for those runs alone.
+700 frames through level thirteen, covering all layouts, bonus icons, warning loops, and retry.
+They also exercise music starts, pause, and mute.  Smoke mode never reads or writes saved scores.
+These runs do not assess sound quality or latency on speakers.  Run `make smoke` for those runs
+alone.
 
 The simulation does not use SDL or perform I/O.  Rendering, input, and audio stay outside it.  See
 [docs/design.md](docs/design.md) for module boundaries and resource cleanup.  Project code and

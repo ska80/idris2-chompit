@@ -47,7 +47,8 @@ export
 withSounds : String -> (SoundBank -> IO (Either String a)) -> IO (Either String a)
 withSounds directory action = withMixerLibrary $ withMixer $ \mixer =>
   withTracks mixer directory ["title", "gameplay", "begin", "chomp-low", "chomp-high", "power", "eat-ghost",
-    "death", "clear", "fruit", "extra-life", "siren", "frightened"] $ \tracks =>
+    "death", "clear", "fruit", "extra-life", "siren", "siren-fast", "siren-faster", "siren-fastest",
+    "frightened", "eyes"] $ \tracks =>
       withPlayOptions $ \looping => do
         True <- setMixerGain mixer 0.65 | False => Left <$> getError
         True <- setPlayLoops looping LoopForever | False => Left <$> getError
@@ -61,10 +62,21 @@ play bank name loop = case findTrack name bank.tracks of
   Nothing => pure False
   Just track => playTrack track (if loop then Just bank.looping else Nothing)
 
+export
+sirenName : Game -> String
+sirenName game =
+  let speed = huntingSpeed game Red
+   in if speed <= 38 then "siren" else if speed <= 42 then "siren-fast" else
+      if speed <= 46 then "siren-faster" else "siren-fastest"
+
+warningLoop : Game -> String
+warningLoop game = if any (\ghost => case ghost.state of Eyes => True; _ => False) game.ghosts
+  then "eyes" else if game.frightened > 0 then "frightened" else sirenName game
+
 ambientLoops : Game -> List String
 ambientLoops game = case game.phase of
   Title => ["title"]
-  Playing => ["gameplay", if game.frightened > 0 then "frightened" else "siren"]
+  Playing => ["gameplay", warningLoop game]
   _ => []
 
 -- Loops to stop, then loops to start. Keep shared tracks running so that

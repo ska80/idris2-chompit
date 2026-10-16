@@ -21,6 +21,8 @@ modules = Chompit.Types
         , Chompit.Game
         , Chompit.Input
         , Chompit.Font
+        , Chompit.Fruit
+        , Chompit.HighScore
         , Chompit.Render
         , Chompit.Audio
         , Main

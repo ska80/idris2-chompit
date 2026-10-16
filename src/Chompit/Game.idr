@@ -179,6 +179,12 @@ ghostDirection game ghost actor = case ghost.state of
     toward house target = best (\d => distanceSquared (neighbor actor.tile d) target)
                                actor.heading (choices game.maze house False actor)
 
+-- Share the scheduled hunting speed with audio, without tunnel slowdowns.
+export
+huntingSpeed : Game -> Identity -> Int
+huntingSpeed game identity = min 50 (38 + (game.level - 1) * 2 +
+  (if identity == Red && game.remaining < 30 then 4 else 0))
+
 ghostSpeed : Game -> Ghost -> Int
 ghostSpeed game ghost = case ghost.state of
   Eyes => 88
@@ -186,8 +192,7 @@ ghostSpeed game ghost = case ghost.state of
   InPen _ => 0
   Hunting => if isFrightened game ghost then 22
              else if ghost.actor.tile.y == 14 && (ghost.actor.tile.x < 6 || ghost.actor.tile.x > 21) then 22
-             else min 50 (38 + (game.level - 1) * 2 +
-                    (if ghost.identity == Red && game.remaining < 30 then 4 else 0))
+             else huntingSpeed game ghost.identity
 
 moveGhost : Game -> Ghost -> Ghost
 moveGhost game ghost = case ghost.state of
@@ -238,9 +243,23 @@ frightDuration level = fromMaybe 0 (pick (cast (max 0 (level - 1)))
   [360, 300, 240, 180, 120, 300, 120, 120, 60, 300, 120, 60, 60, 180, 60, 60, 0, 60])
 
 export
+fruitForLevel : Int -> Fruit
+fruitForLevel level = if level <= 1 then Cherries else
+  if level == 2 then Strawberry else if level <= 4 then OrangeFruit else
+  if level <= 6 then Apple else if level <= 8 then Melon else
+  if level <= 10 then Galaxian else if level <= 12 then Bell else KeyFruit
+
+export
 fruitValue : Int -> Int
-fruitValue level = fromMaybe 5000 (pick (cast (max 0 (level - 1)))
-  [100, 300, 500, 500, 700, 700, 1000, 1000, 2000, 2000, 3000, 3000])
+fruitValue level = case fruitForLevel level of
+  Cherries => 100
+  Strawberry => 300
+  OrangeFruit => 500
+  Apple => 700
+  Melon => 1000
+  Galaxian => 2000
+  Bell => 3000
+  KeyFruit => 5000
 
 energizeGhost : Ghost -> Ghost
 energizeGhost ghost = case ghost.state of

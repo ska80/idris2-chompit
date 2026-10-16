@@ -20,9 +20,10 @@ def rms(samples):
 def test_gameplay_music(bank):
     music = bank["gameplay"]
     music_rms = rms(music)
-    warning_rms = min(rms(bank["siren"]), rms(bank["frightened"]))
+    warning_rms = min(rms(bank[name]) for name in
+                      ["siren", "siren-fast", "siren-faster", "siren-fastest", "frightened", "eyes"])
     assert len(music) == 32 * RATE, "The gameplay loop must contain sixteen bars at 120 beats per minute."
-    assert 0.01 < music_rms < 0.35 * warning_rms, "Music must stay below both warning loops."
+    assert 0.01 < music_rms < 0.35 * warning_rms, "Music must stay below all warning loops."
     assert music_rms < 0.5 * rms(bank["title"]), "Gameplay music must be quieter than the title tune."
     assert max(abs(value) for value in music) < 0.20, "Leave room for sound effects."
     assert music[0] == music[-1] == 0.0, "The loop must join at zero amplitude."
@@ -34,11 +35,26 @@ def test_gameplay_music(bank):
     return 20 * math.log10(rms(bank["siren"]) / music_rms)
 
 
+def test_warning_loops(bank):
+    names = ["siren", "siren-fast", "siren-faster", "siren-fastest"]
+    assert [len(bank[name]) for name in names] == [22050, 17640, 14700, 11025]
+    pitches = []
+    for name in names:
+        samples = bank[name]
+        crossings = sum(a <= 0 < b for a, b in zip(samples, samples[1:]))
+        pitches.append(crossings * RATE / len(samples))
+    assert all(a < b for a, b in zip(pitches, pitches[1:])), "Faster sirens must rise in pitch."
+    assert len(bank["eyes"]) == round(0.6 * RATE)
+    assert rms(bank["eyes"]) < rms(bank["siren"]), "Returning eyes must leave room for capture sounds."
+
+
 def main():
     bank = sounds()
     assert set(bank) == {"title", "gameplay", "begin", "chomp-low", "chomp-high", "power",
-                         "eat-ghost", "death", "clear", "fruit", "extra-life", "siren", "frightened"}
+                         "eat-ghost", "death", "clear", "fruit", "extra-life", "siren", "frightened",
+                         "siren-fast", "siren-faster", "siren-fastest", "eyes"}
     music_level = test_gameplay_music(bank)
+    test_warning_loops(bank)
     with tempfile.TemporaryDirectory(prefix="chompit-audio-") as directory:
         output = Path(directory)
         generate(output)

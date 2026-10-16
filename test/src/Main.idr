@@ -5,6 +5,8 @@ import Chompit.Maze
 import Chompit.Game
 import Chompit.Input
 import Chompit.Audio
+import Chompit.Fruit
+import Chompit.HighScore
 
 import SDL3
 
@@ -12,6 +14,7 @@ import Data.List
 import Data.Maybe
 import Data.SortedMap
 import Data.SortedSet
+import Data.String
 
 import System
 
@@ -372,6 +375,8 @@ audioTests =
       dead = { phase := Dying 90 } playing
       cleared = { phase := Clearing 120 } playing
       over = { phase := GameOver } playing
+      eyes = MkGhost Red (MkActor (At 1 1) East 0) Eyes False
+      returning = { ghosts := [eyes] } playing
    in [ ("The start jingle does not overlap background loops",
          loopChanges newGame ready == (["title"], []))
       , ("Gameplay starts music and the siren together",
@@ -393,9 +398,74 @@ audioTests =
       , ("Game over stops the music", loopChanges playing over == (["gameplay", "siren"], []))
       , ("The ready countdown stays free of background music", loopChanges dead ready == ([], []))
       , ("The next level starts a fresh music loop",
-         loopChanges ready (freshLevel 2) == ([], ["gameplay", "siren"]))
+         loopChanges ready (freshLevel 2) == ([], ["gameplay", "siren-fast"]))
       , ("Retry waits for play before starting music", loopChanges over (command Start over) == ([], []))
+      , ("The four sirens follow scheduled hunting speeds",
+         map (\level => sirenName (freshLevel level)) [1..7] ==
+           ["siren", "siren-fast", "siren-fast", "siren-faster", "siren-faster", "siren-fastest", "siren-fastest"])
+      , ("Red's late-maze acceleration also raises the siren",
+         huntingSpeed playing Red == 38 && huntingSpeed ({ remaining := 29 } playing) Red == 42 &&
+         sirenName ({ remaining := 30 } playing) == "siren" &&
+         loopChanges playing ({ remaining := 29 } playing) == (["siren"], ["siren-fast"]))
+      , ("Returning eyes replace the warning without restarting music",
+         loopChanges playing returning == (["siren"], ["eyes"]))
+      , ("Eyes take priority over frightened audio",
+         loopChanges powered ({ ghosts := [eyes] } powered) == (["frightened"], ["eyes"]))
+      , ("The eyes loop remains while any ghost is returning",
+         loopChanges returning ({ ghosts := [eyes, { identity := Pink } eyes] } returning) == ([], []))
+      , ("Returned ghosts restore the current siren",
+         loopChanges returning ({ ghosts := [{ state := InPen 90 } eyes] } playing) == (["eyes"], ["siren"]))
+      , ("Remaining protection restores frightened audio after eyes return",
+         loopChanges ({ ghosts := [eyes] } powered) powered == (["eyes"], ["frightened"]))
+      , ("A speed change during frightened time keeps the same warning",
+         loopChanges powered ({ remaining := 1 } powered) == ([], []))
+      , ("Death stops the eyes loop and music", loopChanges returning dead == (["gameplay", "eyes"], []))
       ]
+
+bonusTests : List (String, Bool)
+bonusTests =
+  let tiers = [Cherries, Strawberry, OrangeFruit, Apple, Melon, Galaxian, Bell, KeyFruit]
+      sprites = map fruitSprite tiers
+   in [ ("Bonus tiers match the level schedule",
+         map fruitForLevel [1..14] == [Cherries, Strawberry, OrangeFruit, OrangeFruit, Apple, Apple,
+           Melon, Melon, Galaxian, Galaxian, Bell, Bell, KeyFruit, KeyFruit])
+      , ("Each bonus tier keeps its score value",
+         map fruitValue [1, 2, 3, 5, 7, 9, 11, 13] == [100, 300, 500, 700, 1000, 2000, 3000, 5000])
+      , ("Nonpositive levels use cherries", fruitForLevel 0 == Cherries && fruitForLevel (-1) == Cherries)
+      , ("Every bonus icon has its own artwork", length (nub sprites) == 8)
+      , ("Bonus icons are sixteen pixels square",
+         all (\sprite => length sprite == 16 && all (\row => length row == 16) sprite) sprites)
+      , ("Bonus icons use only supported colors",
+         all (\c => elem c (unpack ".rgwoycb")) (concatMap (concatMap unpack) sprites))
+      , ("Each bonus icon has visible pixels", all (\sprite => any (/= '.') (concatMap unpack sprite)) sprites)
+      ]
+
+highScoreTests : List (String, Bool)
+highScoreTests =
+  [ ("Saved scores accept decimal text and surrounding whitespace",
+     parseHighScore "12345" == Just 12345 && parseHighScore "  9000\n" == Just 9000)
+  , ("Saved scores accept zero", parseHighScore "0\n" == Just 0)
+  , ("Saved scores reject negative and signed values",
+     isNothing (parseHighScore "-1") && isNothing (parseHighScore "+123"))
+  , ("Saved scores reject empty, malformed, and multiline data",
+     all (isNothing . parseHighScore) ["", " \n", "12x", "1.5", "100\n200", "100\0ignored"])
+  , ("Saved scores reject overflow and oversized input",
+     isNothing (parseHighScore "99999999999999999999999999999") &&
+     isNothing (parseHighScore (pack (replicate 65 '1'))))
+  , ("XDG state storage takes priority over HOME",
+     defaultScorePath (Just "/state") (Just "/home/test") == Just "/state/chompit/high-score")
+  , ("Empty and relative XDG paths fall back to HOME",
+     all (\path => defaultScorePath path (Just "/home/test") == Just "/home/test/.local/state/chompit/high-score")
+       [Nothing, Just "", Just "relative", Just "/bad\0path"])
+  , ("Missing absolute state roots disable persistence",
+     defaultScorePath Nothing Nothing == Nothing && defaultScorePath (Just "relative") (Just "relative") == Nothing)
+  , ("State roots handle trailing slashes",
+     defaultScorePath (Just "/state/") Nothing == Just "/state/chompit/high-score" &&
+     defaultScorePath (Just "/") Nothing == Just "/chompit/high-score")
+  , ("Score directories preserve absolute and relative paths",
+     parentDirectories "/tmp/a/b/score" == ["/tmp", "/tmp/a", "/tmp/a/b"] &&
+     parentDirectories "a/b/score" == ["a", "a/b"] && parentDirectories "score" == [])
+  ]
 
 runTests : List (String, Bool) -> IO ()
 runTests [] = pure ()
@@ -403,9 +473,29 @@ runTests ((name, passed) :: rest) = do
   if passed then putStrLn ("PASS " ++ name) else die ("FAIL " ++ name)
   runTests rest
 
-main : IO ()
-main = do
+runSuite : IO ()
+runSuite = do
   let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++
-              levelTests ++ inputTests ++ audioTests
+              levelTests ++ inputTests ++ audioTests ++ bonusTests ++ highScoreTests
   runTests tests
   putStrLn (show (length tests) ++ " Chompit tests passed.")
+
+-- The Python integration tests supply temporary paths to these I/O commands.
+main : IO ()
+main = do
+  args <- getArgs
+  case drop 1 args of
+    [] => runSuite
+    ["--read-score", path] => do
+      result <- readHighScore path
+      either die (putStrLn . show) result
+    ["--write-score", path, text] => do
+      let Just score = parseInteger {a = Int} text | Nothing => die "Invalid test score."
+      result <- writeHighScore path score
+      either die (putStrLn . show) result
+    ["--session-score", text] => do
+      let Just score = parseInteger {a = Int} text | Nothing => die "Invalid test score."
+      store <- openScores
+      saved <- checkpointScore store score
+      putStrLn (show store.saved ++ " " ++ show saved.saved)
+    _ => die "Unknown test command."
