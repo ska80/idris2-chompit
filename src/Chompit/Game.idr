@@ -35,10 +35,10 @@ freshCounters = MkReleaseCounters 0 0 0 Nothing 0 False
 
 initialGhosts : List Ghost
 initialGhosts =
-  [ MkGhost Red (MkActor (At 13 11) West 0) Hunting False
-  , MkGhost Pink (MkActor (At 13 14) North 0) (InPen West) False
-  , MkGhost Cyan (MkActor (At 11 14) North 0) (InPen West) False
-  , MkGhost Orange (MkActor (At 15 14) North 0) (InPen West) False
+  [ MkGhost Red (MkActor (At 13 11) West 0) Hunting False False
+  , MkGhost Pink (MkActor (At 13 14) North 0) (InPen West) False False
+  , MkGhost Cyan (MkActor (At 11 14) North 0) (InPen West) False False
+  , MkGhost Orange (MkActor (At 15 14) North 0) (InPen West) False False
   ]
 
 export
@@ -93,12 +93,14 @@ reverseActor actor = if actor.progress == 0
   then { heading := opposite actor.heading } actor
   else MkActor (neighbor actor.tile actor.heading) (opposite actor.heading) (256 - actor.progress)
 
-reverseGhost : Ghost -> Ghost
-reverseGhost ghost = case ghost.state of
-  Hunting => { actor := reverseActor ghost.actor } ghost
-  InPen _ => { state := InPen East } ghost
-  Leaving _ => { state := Leaving East } ghost
-  Eyes => ghost
+-- Multiple requests before the next center share one reversal.
+export
+requestReverse : Ghost -> Ghost
+requestReverse ghost = case ghost.state of
+  Hunting => { reversePending := True } ghost
+  InPen _ => { state := InPen East, reversePending := False } ghost
+  Leaving _ => { state := Leaving East, reversePending := False } ghost
+  Eyes => { reversePending := False } ghost
 
 export
 command : Command -> Game -> Game
@@ -230,8 +232,8 @@ pick (S n) (_ :: xs) = pick n xs
 export
 isFrightened : Game -> Ghost -> Bool
 isFrightened game ghost = case ghost.state of
-  Hunting => game.frightened > 0 && not ghost.revived
-  _ => False
+  Eyes => False
+  _ => game.frightened > 0 && not ghost.revived
 
 export
 ghostTarget : Game -> Ghost -> Tile
@@ -271,20 +273,33 @@ ghostSpeed game ghost = case ghost.state of
             else huntingSpeed game ghost.identity
      in speedStep percent game.frame
 
+export
 moveGhost : Game -> Ghost -> Ghost
 moveGhost game ghost = case ghost.state of
-  InPen _ => ghost
+  InPen _ => { reversePending := False } ghost
   Eyes => if ghost.actor.tile == At 13 14 then
-            { actor := MkActor (At 13 14) North 0, state := InPen West, revived := True } ghost
+            { actor := MkActor (At 13 14) North 0, state := InPen West,
+              revived := True, reversePending := False } ghost
           else advance True ghost
   Leaving exit => if ghost.actor.tile == At 13 11 then
-                    { actor := MkActor (At 13 11) exit 0, state := Hunting } ghost
+                    { actor := MkActor (At 13 11) exit 0, state := Hunting, reversePending := False } ghost
                   else advance True ghost
   Hunting => advance False ghost
   where
     advance : Bool -> Ghost -> Ghost
-    advance house ghost = { actor := moveActor game.maze house (ghostDirection game ghost)
-                                               (ghostSpeed game ghost) ghost.actor } ghost
+    advance house ghost =
+      let here = ghost.actor.tile
+          hunting = case ghost.state of Hunting => True; _ => False
+          pending = hunting && ghost.reversePending
+          choose : Actor -> Direction
+          choose = \actor =>
+            if hunting && actor.tile == here && canMove game.maze house here actor.heading then actor.heading
+            else if actor.tile /= here && pending then opposite actor.heading
+            else ghostDirection game ghost actor
+          moved = moveActor game.maze house choose (ghostSpeed game ghost) ghost.actor
+       -- Keep a hunter's chosen direction, even when its arrival remainder is zero.
+       -- A queued reversal uses the incoming direction, before any junction turn.
+       in { actor := moved, reversePending := pending && moved.tile == here } ghost
 
 export
 actorPosition : Actor -> Tile
@@ -319,6 +334,19 @@ frightDuration level = fromMaybe 0 (pick (cast (max 0 (level - 1)))
   [360, 300, 240, 180, 120, 300, 120, 120, 60, 300, 120, 60, 60, 180, 60, 60, 0, 60])
 
 export
+frightFlashes : Int -> Int
+frightFlashes level = fromMaybe 0 (pick (cast (max 0 (level - 1)))
+  [5, 5, 5, 5, 5, 5, 5, 5, 3, 5, 5, 3, 3, 5, 3, 3, 0, 3])
+
+-- Fourteen updates per color. Anchor the last white interval to expiry,
+-- not the global frame clock, so pauses and capture freezes hold the color.
+export
+isFlashing : Game -> Ghost -> Bool
+isFlashing game ghost =
+  let band = (max 1 game.frightened - 1) `div` 14
+   in isFrightened game ghost && band < 2 * frightFlashes game.level && band `mod` 2 == 0
+
+export
 fruitForLevel : Int -> Fruit
 fruitForLevel level = if level <= 1 then Cherries else
   if level == 2 then Strawberry else if level <= 4 then OrangeFruit else
@@ -339,8 +367,8 @@ fruitValue level = case fruitForLevel level of
 
 energizeGhost : Ghost -> Ghost
 energizeGhost ghost = case ghost.state of
-  Eyes => ghost
-  _ => reverseGhost ({ revived := False } ghost)
+  Eyes => { reversePending := False } ghost
+  _ => requestReverse ({ revived := False } ghost)
 
 export
 releaseLimit : Int -> Identity -> Int
@@ -447,7 +475,7 @@ collisions game = resolve game.ghosts [] game
       Hunting => if not (touching state.player ghost.actor) then resolve rest (ghost :: done) state
         else if isFrightened state ghost then
           let points = fromMaybe 1600 (pick (cast state.chain) [200, 400, 800, 1600])
-              eaten : Ghost = { state := Eyes } ghost
+              eaten : Ghost = { state := Eyes, reversePending := False } ghost
               scored = addCue GhostEaten $ addScore points
                 ({ chain := state.chain + 1, freeze := 30,
                    popup := Just (ghost.actor.tile, points, 90) } state)
@@ -465,7 +493,7 @@ playTick game =
   if game.freeze > 0 then { freeze := game.freeze - 1 } game else
     let mode = if game.frightened > 0 then game.modeTicks else min 65521 (game.modeTicks + 1)
         ghosts = if isScatter game.level mode /= isScatter game.level game.modeTicks
-                   then map reverseGhost game.ghosts else game.ghosts
+                   then map requestReverse game.ghosts else game.ghosts
         timed = { frightened := max 0 (game.frightened - 1), modeTicks := mode,
                   fruitTime := max 0 (game.fruitTime - 1), ghosts := ghosts,
                   release := { idleTicks := min (releaseTimeout game.level) (game.release.idleTicks + 1) } game.release,

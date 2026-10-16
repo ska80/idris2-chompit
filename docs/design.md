@@ -20,6 +20,7 @@ terminate.  This does not prove that the game rules match the arcade machine.
 | `src/Main.idr` | Options, resource scopes, event polling, frame timing, and smoke scenarios |
 | `test/src/Main.idr` | Simulation, input, and audio transition tests |
 | `test/src/Arcade.idr` | Arcade speed tables, release counters, mode schedules, and turn restrictions |
+| `test/src/GhostTiming.idr` | Delayed reversals, movement remainders, and frightened flash schedules |
 | `test/src/Intermissions.idr` | Scene timing, frozen round state, controls, and music transitions |
 | `tools/generate_audio.py` | Deterministic synthesis of eighteen WAV files |
 | `test/src/test_audio.py` | Audio format, signal level, repeat boundaries, and reproducibility tests |
@@ -34,15 +35,24 @@ stall.  Paused frames discard accumulated time, so resuming does not trigger del
 
 An actor stores a tile, a direction, and progress toward the next tile.  Progress uses integer units
 of 1/256 tile.  An update cannot move an actor by a whole tile.  At each tile center, the player
-tries the queued direction before the current direction.  A reversal changes the actor's tile and
-progress without changing its position.  Tunnel rendering draws copies at both edges, and collision
-distances wrap across those edges.
+tries the queued direction before the current direction.  An immediate player reversal changes its
+tile and progress without changing its position.  Tunnel rendering draws copies at both edges, and
+collision distances wrap across those edges.
 
 Ghosts choose from legal directions in up, left, down, right order.  Equal target distances keep
 that order.  Normal ghosts avoid reversing except at a dead end or after a mode change.  Frightened
 ghosts use a deterministic pseudo-random choice, a repeatable sequence of direction choices.
 Returning eyes follow precomputed shortest distances to the house.  The house and its door block the
 player and hunting ghosts.
+
+`Ghost.reversePending` records a requested reversal.  `requestReverse` sets it without moving the
+ghost, and repeated requests before arrival share one reversal.  `moveGhost` applies it at the next
+tile center before any junction choice.  Remaining movement continues in the reversed direction.
+The selected heading stays fixed between centers, including when arrival leaves zero movement.
+
+Waiting and leaving ghosts remember an eastward house exit instead.  Capture clears a pending
+reversal, and eyes ignore requests.  Death, retry, and new levels reset pending reversals.  Pause,
+capture freezes, and intermissions preserve them.
 
 `restrictedUp` excludes four upward turns for normal ghosts.  It requires both horizontal exits, so
 the restriction cannot block a corner in an original layout.
@@ -66,6 +76,12 @@ next ghost.  The idle timeout runs after consumption, so a pellet on that update
 appends sound cues to it.  The main loop plays the cues once, then clears them.  Score popups,
 capture freezes, death animations, and level-clear flashes use simulation timers.  Pausing stops all
 of those timers and pauses the mixer tracks.
+
+`frightFlashes` supplies each level's white flash count.  `isFlashing` derives a ghost's warning
+color from the remaining protection time, with fourteen updates per color.  The final white interval
+ends with protection, and short durations truncate the first white interval.  Capture freezes hold
+the color even while the global frame count advances.  Eyes and revived bodies never flash under the
+current power pellet.
 
 ## Mazes and level changes
 

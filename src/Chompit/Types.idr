@@ -82,6 +82,8 @@ record Ghost where
   actor : Actor
   state : GhostState
   revived : Bool
+  -- A reversal request waits until the next tile center.
+  reversePending : Bool
 
 public export
 record ReleaseCounters where

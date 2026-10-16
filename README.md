@@ -15,8 +15,9 @@ short musical cues in `assets/sounds/`.  A Python script can regenerate these fi
 sampled arcade audio, external font, or downloaded asset is required.
 
 Chompit follows the arcade speed tables, pellet-based ghost releases, and later-level chase
-schedules.  It is not a cycle-accurate reproduction.  Turning, collisions, and animation still use
-simpler rules.  The generated melodies and waveforms are original, not exact copies.  See [arcade
+schedules.  Ghosts reverse at the next tile center and use level-specific warning flashes.  It is
+not a cycle-accurate reproduction.  Turning, collisions, and animation still use simpler rules.  The
+generated melodies and waveforms are original, not exact copies.  See [arcade
 rules](docs/arcade-rules.md) for the tables and differences, and [TODO.md](TODO.md) for remaining
 work.
 
@@ -84,10 +85,12 @@ the music with the game, and M mutes music and effects together.  Four siren var
 ghost's hunting speed.  A separate warning plays while captured eyes return to the house.
 
 Dots score 10 points, and each maze has four power pellets worth 50 points.  The first maze has 240
-dots, with different counts in the other layouts.  Power pellets turn hunting ghosts blue for a
-limited time.  Consecutive captures score 200, 400, 800, then 1,600 points.  Captured eyes return to
-the house and regain their bodies.  Revived ghosts resist the current power pellet, but another
-power pellet removes that protection.
+dots, with different counts in the other layouts.  Power pellets turn ghosts blue for a limited
+time, with white flashes before protection ends.  The flash count follows the level number.
+
+Consecutive captures score 200, 400, 800, then 1,600 points.  Captured eyes return to the house and
+regain their bodies.  Revived ghosts resist the current power pellet, but another power pellet
+removes that protection.
 
 Red targets the player, and pink targets four tiles ahead.  Cyan uses the player's direction and
 red's position.  Orange chases from a distance and retreats when it gets close.  Ghosts alternate
@@ -99,8 +102,11 @@ restriction applies to matching junctions in the other layouts, but not to corne
 
 Pellet counts control when ghosts leave the house.  A timer releases waiting ghosts if you stop
 eating.  Red speeds up twice near maze completion and then keeps chasing during scatter.  After
-level twenty, the player slows down again.  Power pellets reverse ghosts on every level, but they
-provide no protection at level seventeen or from level nineteen onward.
+level twenty, the player slows down again.
+
+Mode changes and power pellets request a reversal at the next tile center.  Multiple requests before
+that arrival share one reversal.  Power pellets request reversals on every level, but provide no
+protection at level seventeen or from level nineteen onward.
 
 You start with three lives and earn one extra life at 10,000 points.  Bonus fruit appears after 70
 and 170 pellets, and disappears after ten seconds.  Its value and artwork follow eight bonus tiers,
@@ -148,7 +154,8 @@ game and test build output.
 
 The suite tests all five mazes, movement, ghost targets, collisions, scoring, timers, input mapping,
 automatic level changes, bonus icons, and audio transitions.  `test/src/Arcade.idr` adds
-speed-table, release-counter, mode-boundary, and restricted-turn tests.
+speed-table, release-counter, mode-boundary, and restricted-turn tests.  `test/src/GhostTiming.idr`
+tests delayed reversals across all layouts and each level's complete warning sequence.
 `test/src/Intermissions.idr` tests scene timing, frozen game state, controls, and music transitions.
 
 Audio tests compare bundled WAV files with regenerated audio.  They also test warning-loop speeds,
@@ -157,7 +164,9 @@ normal game through start, movement, and quit.  They do not touch your saved sco
 
 A smoke test runs a short scripted game with dummy SDL devices.  The audio and silent runs each draw
 2,185 frames through level thirteen, covering all layouts, bonus icons, warning loops, and retry.
-They play all three intermissions to completion and exercise pause and mute during each scene.
+They exercise delayed reversals and warning colors, then play all three intermissions to completion.
+Each scene includes pause and mute.
+
 Smoke mode never reads or writes saved scores.  These runs do not assess sound quality or latency on
 speakers.  Run `make smoke` for those runs alone.
 

@@ -160,7 +160,7 @@ ghostPicture game ghost =
   let (x, y) = position ghost.actor
       eyes = case ghost.state of Eyes => True; _ => False
       scared = isFrightened game ghost
-      flash = game.frightened < 120 && game.frame `mod` 20 < 10
+      flash = isFlashing game ghost
       offsets : List Double = if ghost.actor.tile.y == 14 then [-224, 0, 224] else [0]
    in concatMap (\offset => ghostAt game.frame scared flash eyes ghost.identity ghost.actor.heading (x + offset) y) offsets
 

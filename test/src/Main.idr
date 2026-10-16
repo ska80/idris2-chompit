@@ -1,7 +1,9 @@
 module Main
 
 import Arcade
+import GhostTiming
 import Intermissions
+
 import Chompit.Types
 import Chompit.Maze
 import Chompit.Game
@@ -103,11 +105,11 @@ returned (S fuel) game = case firstGhost game of
     _ => returned fuel (step game)
 
 homeTest : Game -> Tile -> Bool
-homeTest game tile = returned 1500 ({ ghosts := [MkGhost Red (MkActor tile East 0) Eyes False] } game)
+homeTest game tile = returned 1500 ({ ghosts := [MkGhost Red (MkActor tile East 0) Eyes False False] } game)
 
 capture : Game -> Game
 capture game = step ({ player := MkActor (At 13 23) West 0, wanted := West,
-                       stall := 1, freeze := 0, ghosts := [MkGhost Red (MkActor (At 13 23) West 0) Hunting False] } game)
+                       stall := 1, freeze := 0, ghosts := [MkGhost Red (MkActor (At 13 23) West 0) Hunting False False] } game)
 
 samePosition : Actor -> Actor -> Bool
 samePosition a b = actorPosition a == actorPosition b
@@ -157,11 +159,11 @@ ghostTests : List (String, Bool)
 ghostTests =
   let game = { player := MkActor (At 12 20) East 0 } newGame
       north = { player := MkActor (At 12 20) North 0 } game
-      red = MkGhost Red (MkActor (At 1 1) East 0) Hunting False
+      red = MkGhost Red (MkActor (At 1 1) East 0) Hunting False False
       pink = { identity := Pink } red
       cyan = { identity := Cyan } red
       far = { identity := Orange } red
-      near = MkGhost Orange (MkActor (At 13 20) West 0) Hunting False
+      near = MkGhost Orange (MkActor (At 13 20) West 0) Hunting False False
       active = { phase := Playing } newGame
       pen = step active
       power = step ({ ghosts := [{ actor := MkActor (At 6 5) East 120 } red] } (atTile (At 1 3)))
@@ -173,13 +175,15 @@ ghostTests =
       , ("Orange retreats when the player is near", chaseTarget game near == At 0 33)
       , ("Scatter and chase use timed phases", isScatter 1 0 && not (isScatter 1 420) && isScatter 1 1620 && not (isScatter 1 5040))
       , ("Pink leaves the pen without waiting for pellets", any (\g => case g.state of Leaving _ => g.identity == Pink; _ => False) pen.ghosts)
-      , ("A power pellet reverses hunting ghosts", maybe False (\g => g.actor.heading == West) (firstGhost power))
+      , ("A power pellet queues a reversal at the next tile center",
+         maybe False (\g => g.reversePending && g.actor.heading == East) (firstGhost power) &&
+         maybe False (\g => not g.reversePending && g.actor.heading == West) (firstGhost (advance 8 power)))
       , ("Frightened time pauses the scatter clock", (step ({ frightened := 100, modeTicks := 100 } playing)).modeTicks == 100)
       , ("Frightened time expires", (step ({ frightened := 1 } playing)).frightened == 0)
       , ("Later levels reduce power-pellet protection", frightDuration 1 == 360 && frightDuration 19 == 0)
       , ("Revived ghosts resist the current power pellet", not (isFrightened ({ frightened := 360 } playing) ({ revived := True } red)))
       , ("A new power pellet removes revival immunity", maybe False (isFrightened power) (firstGhost (step ({ ghosts := [{ revived := True } red] } (atTile (At 1 3))))))
-      , ("Eyes regain immunity inside the house", maybe False (\g => g.revived) (firstGhost (step ({ ghosts := [MkGhost Red (MkActor (At 13 14) North 0) Eyes False] } playing))))
+      , ("Eyes regain immunity inside the house", maybe False (\g => g.revived) (firstGhost (step ({ ghosts := [MkGhost Red (MkActor (At 13 14) North 0) Eyes False False] } playing))))
       , ("Eyes return from all maze corners and both tunnel ends", all (homeTest playing) [At 1 1, At 26 1, At 1 29, At 26 29, At 0 14, At 27 14])
       ]
 
@@ -382,7 +386,7 @@ audioTests =
       dead = { phase := Dying 90 } playing
       cleared = { phase := Clearing 120 } playing
       over = { phase := GameOver } playing
-      eyes = MkGhost Red (MkActor (At 1 1) East 0) Eyes False
+      eyes = MkGhost Red (MkActor (At 1 1) East 0) Eyes False False
       returning = { ghosts := [eyes] } playing
    in [ ("The start jingle does not overlap background loops",
          loopChanges newGame ready == (["title"], []))
@@ -483,7 +487,8 @@ runTests ((name, passed) :: rest) = do
 runSuite : IO ()
 runSuite = do
   let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++
-              levelTests ++ inputTests ++ audioTests ++ bonusTests ++ highScoreTests ++ arcadeTests ++ intermissionTests
+              levelTests ++ inputTests ++ audioTests ++ bonusTests ++ highScoreTests ++
+              arcadeTests ++ ghostTimingTests ++ intermissionTests
   runTests tests
   putStrLn (show (length tests) ++ " Chompit tests passed.")
 

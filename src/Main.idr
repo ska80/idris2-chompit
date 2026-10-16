@@ -82,9 +82,11 @@ smokeInput 180 game = { fruitTime := 300 } game
 smokeInput 200 game = command (Turn North) game
 smokeInput 210 game = command Pause game
 smokeInput 220 game = command Pause game
-smokeInput 240 game = { player := MkActor (At 1 3) North 0, ghosts := [], stall := 1 } game
-smokeInput 260 game = { ghosts := [MkGhost Red game.player Hunting False], stall := 1 } game
-smokeInput 300 game = { frightened := 0, ghosts := [MkGhost Pink game.player Hunting False], stall := 1 } game
+smokeInput 240 game = { player := MkActor (At 1 3) North 0,
+                        ghosts := [MkGhost Red (MkActor (At 12 11) East 120) Hunting False False], stall := 1 } game
+smokeInput 245 game = { frightened := 28 } game
+smokeInput 260 game = { ghosts := [MkGhost Red game.player Hunting False False], stall := 1 } game
+smokeInput 300 game = { frightened := 0, ghosts := [MkGhost Pink game.player Hunting False False], stall := 1 } game
 smokeInput 400 game = { phase := Playing, ghosts := [], remaining := 0 } game
 smokeInput 410 game = { phase := Clearing 1 } game
 smokeInput 420 game = { phase := Ready 1, fruitTime := 300 } game
@@ -102,6 +104,8 @@ smokeInput 530 game = { phase := Clearing 1 } game
 smokeInput 540 game = { phase := Ready 1, fruitTime := 300 } game
 smokeInput 550 game = { phase := Clearing 1 } game
 smokeInput 560 game = { phase := Ready 1, fruitTime := 300 } game
+smokeInput 564 game = { player := MkActor (At 1 3) North 0, stall := 1,
+                        ghosts := [MkGhost Red (MkActor (At 12 11) East 0) Hunting False False] } game
 smokeInput 570 game = { phase := Clearing 1 } game
 smokeInput 580 game = { phase := Ready 1, fruitTime := 300 } game
 smokeInput 590 game = { phase := Clearing 1 } game

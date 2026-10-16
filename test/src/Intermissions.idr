@@ -22,6 +22,7 @@ cleared level =
         eaten := pelletCount maze, phase := Clearing 1,
         score := 15000, highScore := 20000, lives := 2, extraLife := True,
         player := MkActor (At 1 1) East 72, wanted := West,
+        ghosts := map (\g => { reversePending := g.identity == Red } g) newGame.ghosts,
         modeTicks := 1000, chain := 3, stall := 2, freeze := 30,
         fruitTime := 90, fruitStage := 2, popup := Just (At 13 17, 100, 60),
         release := MkReleaseCounters 0 30 60 Nothing 12 False, seed := 123 } newGame
@@ -38,7 +39,7 @@ sameActor a b = a.tile == b.tile && a.heading == b.heading && a.progress == b.pr
 
 sameGhost : Ghost -> Ghost -> Bool
 sameGhost a b = a.identity == b.identity && sameActor a.actor b.actor &&
-  sameState a.state b.state && a.revived == b.revived
+  sameState a.state b.state && a.revived == b.revived && a.reversePending == b.reversePending
 
 sameCounters : ReleaseCounters -> ReleaseCounters -> Bool
 sameCounters a b = a.pinkDots == b.pinkDots && a.cyanDots == b.cyanDots &&

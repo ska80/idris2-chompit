@@ -1,13 +1,14 @@
 # Arcade rules
 
-The speed tables, ghost release rules, and mode schedules follow Jamey Pittman's [The Pac-Man
-Dossier](https://pacman.holenet.info/).  The reference sections are Chapter 2, Blinky in Chapter 4,
-and Table A.1.  Chompit uses the normal difficulty table.  Pellet counts include ordinary dots and
-power pellets.
+The speed tables, ghost release rules, mode schedules, and frightened flash counts follow Jamey
+Pittman's [The Pac-Man Dossier](https://pacman.holenet.info/).  The reference sections are Chapter
+2, Blinky in Chapter 4, and Table A.1.  Chompit uses the normal difficulty table.  Pellet counts
+include ordinary dots and power pellets.
 
 `Chompit.Game` applies these rules without SDL or file access.  `test/src/Arcade.idr` tests their
-boundaries, including later levels and recovery after death.  This is a rule model, not an emulator
-of the original hardware.
+boundaries, including later levels and recovery after death.  `test/src/GhostTiming.idr` tests
+delayed reversals and warning colors.  This is a rule model, not an emulator of the original
+hardware.
 
 ## Movement speeds
 
@@ -48,10 +49,42 @@ clock.  Death and level completion reset it.
 | Scatter 4 | 5 | 1/60 | 1/60 |
 | Chase 4 | Permanent | Permanent | Permanent |
 
-Each scatter/chase change reverses hunting ghosts.  The one-update fourth scatter therefore causes
-two reversals on successive updates.  A power pellet also reverses ghosts, including on levels with
-no frightened time.  Level 17 and levels 19 onward have no protection.  Level 18 restores one second
-of protection.
+Each scatter/chase change requests a reversal.  A power pellet also requests one, even on levels
+with no frightened time.  Frightened expiry does not request another reversal.
+
+A hunting ghost keeps its heading until the next tile center.  There it reverses the incoming
+direction before choosing any junction turn.  It spends the remaining movement for that update in
+the new direction.  The chosen heading stays fixed until the following center.
+
+The one-update fourth scatter sends requests on successive updates.  Multiple requests before the
+same arrival cause only one reversal.  Ghosts at different positions can reverse on different
+updates.  Capture clears a pending request, and returning eyes ignore new requests.
+
+## Frightened warning flashes
+
+Frightened ghosts alternate between blue and white before protection ends.  The white flash count
+follows the level number, not the maze layout.  Protection durations include these flashes.
+
+| Levels | Protection in seconds | White flashes |
+| --- | --- | --- |
+| 1 | 6 | 5 |
+| 2, 6, 10 | 5 | 5 |
+| 3 | 4 | 5 |
+| 4, 14 | 3 | 5 |
+| 5, 7, 8, 11 | 2 | 5 |
+| 9, 12, 13, 15, 16, 18 | 1 | 3 |
+| 17, 19 onward | 0 | 0 |
+
+Each color interval lasts fourteen updates.  The [masonicGIT
+implementation](https://github.com/masonicGIT/pacman/blob/master/src/energizer.js) also uses this
+interval.  Chompit places the last white interval in the final fourteen protected updates.  Short
+durations truncate the first white interval instead of extending protection.  One-second protection
+starts with four white updates, and two-second protection starts with eight.
+
+The remaining protection time determines the color, not the global animation frame.  Pause and
+capture freezes therefore hold the current color.  A new power pellet restarts the level's sequence.
+Waiting and leaving bodies use the same colors as hunting ghosts.  Returning eyes never flash.
+Revived bodies resist the current power pellet but can flash after another one.
 
 ## Leaving the house
 
@@ -110,7 +143,7 @@ when their initial pellet totals differ.
 
 Maze coordinates start at `(0, 0)` in the upper-left corner.  Normal ghosts cannot choose an upward
 exit at `(12, 11)`, `(15, 11)`, `(12, 23)`, or `(15, 23)`.  The player, frightened ghosts, and
-returning eyes do not have this restriction.
+returning eyes do not have this restriction.  Forced reversals also bypass it.
 
 In the four original layouts, this rule applies only where both horizontal exits exist.  A corner
 cannot become a dead end because of the restriction.  Tests cover every valid incoming direction at
@@ -137,11 +170,10 @@ preserved.  No intermissions occur after level 17.
 Chompit deliberately keeps several simpler rules and presentation choices:
 
 - Turns occur at tile centers, without the arcade player's early cornering.
-- Hunting ghosts reverse immediately rather than waiting to enter another tile.
+- Ghosts choose junction exits on arrival instead of looking one tile ahead.
 - Collisions use distance between actors rather than tile comparisons.
 - Waiting ghosts remain still, and house exits and returning eyes use fixed speeds.
 - Frightened choices use Chompit's own repeatable random sequence, reset after death or a new level.
-- Frightened warning flashes use a simple timer rather than the level-specific flash counts.
 - Fruit lasts a fixed ten seconds.
 - Five layouts repeat beyond level 256 without the arcade game's split-screen failure.
 
