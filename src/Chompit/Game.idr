@@ -66,6 +66,28 @@ nextLevel game =
            fruitStage := 0, release := freshCounters } game)
 
 export
+intermissionDuration : Int
+intermissionDuration = 480
+
+export
+intermissionFor : Int -> Maybe Interlude
+intermissionFor 2 = Just Turnabout
+intermissionFor 5 = Just Snag
+intermissionFor 9 = Just Costume
+intermissionFor 13 = Just Costume
+intermissionFor 17 = Just Costume
+intermissionFor _ = Nothing
+
+export
+isIntermission : Game -> Bool
+isIntermission game = case game.phase of Intermission _ _ => True; _ => False
+
+finishLevel : Game -> Game
+finishLevel game = case intermissionFor game.level of
+  Nothing => nextLevel game
+  Just scene => { phase := Intermission scene intermissionDuration } game
+
+export
 reverseActor : Actor -> Actor
 reverseActor actor = if actor.progress == 0
   then { heading := opposite actor.heading } actor
@@ -83,10 +105,11 @@ command : Command -> Game -> Game
 command (Turn direction) game =
   let actor = if direction == opposite game.player.heading && game.player.progress > 0
                  then reverseActor game.player else game.player
-   in if game.paused then game else { wanted := direction, player := actor } game
+   in if game.paused || isIntermission game then game else { wanted := direction, player := actor } game
 command Start game = case game.phase of
   Title => { highScore := game.highScore, phase := Ready 180, sounds := [BeginGame] } newGame
   GameOver => { highScore := game.highScore, phase := Ready 180, sounds := [BeginGame] } newGame
+  Intermission _ _ => if game.paused then game else nextLevel game
   _ => game
 command Pause game = case game.phase of
   Title => game
@@ -472,7 +495,9 @@ step game = if game.paused then game else
                           ({ lives := game.lives - 1,
                              release := { globalDots := Just 0, elroyWaiting := True } game.release } next)
     Clearing ticks => if ticks > 1 then { phase := Clearing (ticks - 1) } next
-                      else nextLevel next
+                      else finishLevel next
+    Intermission scene ticks => if ticks > 1 then { phase := Intermission scene (ticks - 1) } next
+                                else nextLevel next
 
 -- Drop excess wall-clock time after a stall. At most six fixed updates/frame.
 export

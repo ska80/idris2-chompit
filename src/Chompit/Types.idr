@@ -107,7 +107,18 @@ Eq Fruit where
   _ == _ = False
 
 public export
-data Phase = Title | Ready Int | Playing | Dying Int | Clearing Int | GameOver
+data Interlude = Turnabout | Snag | Costume
+
+public export
+Eq Interlude where
+  Turnabout == Turnabout = True
+  Snag == Snag = True
+  Costume == Costume = True
+  _ == _ = False
+
+public export
+data Phase = Title | Ready Int | Playing | Dying Int | Clearing Int
+           | Intermission Interlude Int | GameOver
 
 public export
 data Cue = ChompLow | ChompHigh | Energize | GhostEaten | PlayerDied

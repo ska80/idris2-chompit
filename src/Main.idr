@@ -45,10 +45,11 @@ record State where
   muted : Bool
   previous : Bits64
   remainder : Double
-  frames : Int
+  frames, scriptFrame, sceneFrames : Int
   heard : List Cue
-  -- Difficulty level and the layout that the renderer receives.
+  -- Difficulty level, layout, and intermission quarters seen by the renderer.
   seenLevels : List (Int, Int)
+  seenScenes : List (Interlude, Int)
   scores : ScoreStore
 
 finish : State -> Either String () -> IO (Either String ())
@@ -121,17 +122,35 @@ smokeMute 225 _ = True
 smokeMute 235 _ = False
 smokeMute _ muted = muted
 
+-- Let every scene finish without advancing the gameplay script. Pause for
+-- fifteen rendered frames, then mute and unmute its music without a restart.
+smokeSceneInput : Int -> Game -> Game
+smokeSceneInput 45 game = command Pause game
+smokeSceneInput 60 game = command Pause game
+smokeSceneInput _ game = game
+
+smokeSceneMute : Int -> Bool -> Bool
+smokeSceneMute 90 _ = True
+smokeSceneMute 100 _ = False
+smokeSceneMute _ muted = muted
+
+sceneSample : Game -> List (Interlude, Int)
+sceneSample game = case game.phase of
+  Intermission scene ticks => [(scene, (intermissionDuration - ticks) `div` 120)]
+  _ => []
+
 smokePassed : State -> Bool
 smokePassed state = not state.muted && state.game.level == 1 && state.game.maze.layoutId == 1 &&
-  state.game.highScore >= 260 &&
+  state.game.highScore >= 260 && state.frames == 700 + 3 * (intermissionDuration + 15) &&
   all (\level => elem (level, layoutNumber level) state.seenLevels) [1..13] &&
+  all (\scene => all (\quarter => elem (scene, quarter) state.seenScenes) [0..3]) [Turnabout, Snag, Costume] &&
   all (\cue => elem cue state.heard) [BeginGame, ChompLow, Energize, GhostEaten, PlayerDied, LevelWon]
 
 loop : Context -> State -> IO (Either String ())
-loop context state = if context.smoke && state.frames >= 700 then
+loop context state = if context.smoke && (state.scriptFrame >= 700 || state.frames >= 3000) then
   if smokePassed state then do
     let mode : String = case context.audio of Nothing => "silent"; Just _ => "audio"
-    putStrLn ("Chompit " ++ mode ++ " smoke passed: 700 frames, five layouts, eight bonus icons, level cycling, retry, movement, capture, death, pause, and mute.")
+    putStrLn ("Chompit " ++ mode ++ " smoke passed: " ++ show state.frames ++ " frames, five layouts, eight bonus icons, three intermissions, level cycling, retry, movement, capture, death, pause, and mute.")
     finish state (Right ())
   else finish state (Left "The Chompit smoke test did not reach every required game state.")
   else do
@@ -139,8 +158,13 @@ loop context state = if context.smoke && state.frames >= 700 then
     Right (Just (input, inputMuted)) <- poll 128 context state.game state.muted
       | Right Nothing => finish state (Right ())
       | Left err => finish state (Left err)
-    let muted = if context.smoke then smokeMute state.frames inputMuted else inputMuted
-    let edited = if context.smoke then smokeInput state.frames input else input
+    let inScene = context.smoke && isIntermission state.game
+    let muted = if not context.smoke then inputMuted
+                else if inScene then smokeSceneMute state.sceneFrames inputMuted
+                else smokeMute state.scriptFrame inputMuted
+    let edited = if not context.smoke then input
+                 else if inScene then smokeSceneInput state.sceneFrames input
+                 else smokeInput state.scriptFrame input
     let (count, remainder) = if context.smoke then (1, 0)
           else if edited.paused then (0, 0)
           else accumulate state.remainder (cast (start - state.previous) / 1000000000)
@@ -157,7 +181,12 @@ loop context state = if context.smoke && state.frames >= 700 then
       delayNS (if end - start < 16666667 then 16666667 - (end - start) else 0)
     let heard = if context.smoke then nub (game.sounds ++ state.heard) else []
     let levels = if context.smoke then nub ((game.level, game.maze.layoutId) :: state.seenLevels) else []
-    loop context (MkState ({ sounds := [] } game) muted start remainder (state.frames + 1) heard levels scores)
+    let scenes = if context.smoke then nub (sceneSample game ++ state.seenScenes) else []
+    loop context ({ game := { sounds := [] } game, muted := muted, previous := start,
+                    remainder := remainder, frames := state.frames + 1,
+                    scriptFrame := if context.smoke && not inScene then state.scriptFrame + 1 else state.scriptFrame,
+                    sceneFrames := if inScene then state.sceneFrames + 1 else 0,
+                    heard := heard, seenLevels := levels, seenScenes := scenes, scores := scores } state)
 
 runWindow : Options -> Maybe SoundBank -> IO (Either String ())
 runWindow options audio = withWindow "Chompit | Idris 2 + SDL3" 672 864 resizable $ \window =>
@@ -172,7 +201,7 @@ runWindow options audio = withWindow "Chompit | Idris 2 + SDL3" 672 864 resizabl
       Right () <- startAudio audio game | Left err => pure (Left err)
       now <- ticksNS
       loop (MkContext window identifier display events audio options.smoke)
-           (MkState game False now 0 0 [] [] scores)
+           (MkState game False now 0 0 0 0 [] [] [] scores)
 
 main : IO ()
 main = do

@@ -19,15 +19,16 @@ icon below the maze use the same artwork for the current level.
 | 11–12 | Bell | 3,000 |
 | 13 onward | Key | 5,000 |
 
-The seventeen original audio files in `assets/sounds/` are tracked in Git.
-`tools/generate_audio.py` recreates them with only the Python standard library.  Each file contains
-mono, signed 16-bit PCM at 22,050 Hz.  PCM stores the waveform as a sequence of samples.  The
-synthesis uses tones, pitch sweeps, and short melodies, with quiet endpoints to reduce clicks.
+The eighteen original audio files in `assets/sounds/` are tracked in Git.  `tools/generate_audio.py`
+recreates them with only the Python standard library.  Each file contains mono, signed 16-bit PCM at
+22,050 Hz.  PCM stores the waveform as a sequence of samples.  The synthesis uses tones, pitch
+sweeps, and short melodies, with quiet endpoints to reduce clicks.
 
 | Filename | Use |
 | --- | --- |
 | `title.wav` | Looping title music |
 | `gameplay.wav` | Quiet gameplay music, alongside the warning loops |
+| `intermission.wav` | Music for the three animated intermissions |
 | `begin.wav` | Start jingle |
 | `chomp-low.wav`, `chomp-high.wav` | Alternating pellet sounds |
 | `power.wav` | Power-pellet cue |
@@ -45,6 +46,14 @@ synthesis uses tones, pitch sweeps, and short melodies, with quiet endpoints to 
 notes, and quiet chords without drums.  The mix stays below the existing warning loops and sound
 effects.  Both endpoints are zero, with gradual note attacks and releases to avoid sudden changes
 where the loop repeats.
+
+`intermission.wav` is an original eight-second tune at 120 beats per minute.  Four short melody
+phrases and a bass part accompany the animated scenes.  It replaces the gameplay music and warning
+loops during each scene.  Pause holds its position, mute silences it, and skipping fades it out.
+
+The intermission artwork is drawn in `src/Chompit/Render.idr`.  It reuses the existing player and
+ghost shapes, with new torn-costume and uncovered-creature shapes.  The large player scales the same
+pixel rectangles.  No downloaded images, textures, or animation files are required.
 
 The siren rises in pitch and repeats faster as the red ghost's hunting speed increases.  Tunnel
 slowdowns do not change it.  Returning eyes take priority over the other warnings, so only one

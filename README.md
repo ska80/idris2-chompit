@@ -69,7 +69,7 @@ but preserves the bundled sounds and leaves the sibling library unchanged.
 
 | Key | Action |
 | --- | --- |
-| Enter or Space | Start or retry after game over |
+| Enter or Space | Start, retry, or skip an intermission |
 | Arrow keys or WASD | Move and queue the next turn |
 | P | Pause or resume |
 | M | Mute or restore sound |
@@ -106,9 +106,15 @@ You start with three lives and earn one extra life at 10,000 points.  Bonus frui
 and 170 pellets, and disappears after ten seconds.  Its value and artwork follow eight bonus tiers,
 from cherries to the key.  The maze bonus and the icon below the maze always show the current tier.
 
-Collect every dot and power pellet to complete a level.  After the completion animation, the game
-loads the next maze automatically and starts a short ready countdown.  Your score and lives carry
-over.  After level five, the layouts repeat from the first maze.  The level number keeps rising, and
+Collect every dot and power pellet to complete a level.  A completion animation and a short ready
+countdown separate levels.  Your score and lives carry over automatically.
+
+An intermission is a short animation between levels.  Three scenes appear after levels 2, 5, 9, 13,
+and 17, with the third scene repeating.  Each lasts eight seconds, with one shared music loop in
+place of gameplay audio.  Enter or Space skips the scene, P pauses it, and M mutes it.  Enter does
+not skip a paused scene.  The next maze loads when the scene ends or you skip it.
+
+After level five, the layouts repeat from the first maze.  The level number keeps rising, and
 difficulty does not reset.  A retry after game over starts at level one.
 
 ## Saved high scores
@@ -142,16 +148,18 @@ game and test build output.
 
 The suite tests all five mazes, movement, ghost targets, collisions, scoring, timers, input mapping,
 automatic level changes, bonus icons, and audio transitions.  `test/src/Arcade.idr` adds
-speed-table, release-counter, mode-boundary, and restricted-turn tests.  Audio tests compare bundled
-WAV files with regenerated audio.  They also test warning-loop speeds, the music level, and the join
-between repeats.  Score tests use temporary directories and drive the normal game through start,
-movement, and quit.  They do not touch your saved score.
+speed-table, release-counter, mode-boundary, and restricted-turn tests.
+`test/src/Intermissions.idr` tests scene timing, frozen game state, controls, and music transitions.
+
+Audio tests compare bundled WAV files with regenerated audio.  They also test warning-loop speeds,
+the music level, and the join between repeats.  Score tests use temporary directories and drive the
+normal game through start, movement, and quit.  They do not touch your saved score.
 
 A smoke test runs a short scripted game with dummy SDL devices.  The audio and silent runs each draw
-700 frames through level thirteen, covering all layouts, bonus icons, warning loops, and retry.
-They also exercise music starts, pause, and mute.  Smoke mode never reads or writes saved scores.
-These runs do not assess sound quality or latency on speakers.  Run `make smoke` for those runs
-alone.
+2,185 frames through level thirteen, covering all layouts, bonus icons, warning loops, and retry.
+They play all three intermissions to completion and exercise pause and mute during each scene.
+Smoke mode never reads or writes saved scores.  These runs do not assess sound quality or latency on
+speakers.  Run `make smoke` for those runs alone.
 
 The simulation does not use SDL or perform I/O.  Rendering, input, and audio stay outside it.  See
 [docs/design.md](docs/design.md) for module boundaries and resource cleanup.  Project code and

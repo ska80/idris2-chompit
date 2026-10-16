@@ -20,7 +20,8 @@ terminate.  This does not prove that the game rules match the arcade machine.
 | `src/Main.idr` | Options, resource scopes, event polling, frame timing, and smoke scenarios |
 | `test/src/Main.idr` | Simulation, input, and audio transition tests |
 | `test/src/Arcade.idr` | Arcade speed tables, release counters, mode schedules, and turn restrictions |
-| `tools/generate_audio.py` | Deterministic synthesis of seventeen WAV files |
+| `test/src/Intermissions.idr` | Scene timing, frozen round state, controls, and music transitions |
+| `tools/generate_audio.py` | Deterministic synthesis of eighteen WAV files |
 | `test/src/test_audio.py` | Audio format, signal level, repeat boundaries, and reproducibility tests |
 | `test/src/test_high_score.py` | Isolated score-file and process-restart tests |
 | `test/src/score_input.c` | SDL keyboard and quit events for normal-path score tests |
@@ -81,14 +82,37 @@ original designs.
 | 4. Courtyard | 248 | 4 |
 | 5. Circuit | 256 | 4 |
 
-The last pellet starts a 120-update completion animation.  The game then loads the next layout,
-including its cells, pellets, and shortest routes to the house.  Actors and round timers reset,
-followed by a 120-update ready countdown.  Score, high score, lives, and the extra-life award status
-carry over.  Death keeps the current layout and collected pellets, but a retry starts at level one.
+The last pellet starts a 120-update completion animation.  On scheduled levels, a 480-update
+intermission follows before the next layout loads.  Other levels proceed directly to the next
+layout, including its cells, pellets, and shortest routes to the house.  Actors and round timers
+reset, followed by a 120-update ready countdown.  Score, high score, lives, and the extra-life award
+status carry over.  Death keeps the current layout and collected pellets, but a retry starts at
+level one.
 
 After level five, layouts repeat while the level number continues to increase.  Speed, fruit value,
 and power-pellet duration still use that level number.  This layout cycle is an intentional
 difference from the arcade game.
+
+## Intermissions
+
+`intermissionFor` selects a scene from the completed difficulty level, not the layout number.  The
+`Intermission` phase stores its `Interlude` kind and remaining updates.  Only that countdown and the
+frame count advance during a scene.  Actors, pellets, scores, lives, and round timers stay unchanged
+until the next level loads.
+
+Enter or Space skips an unpaused scene through the same `nextLevel` function as normal completion.
+Movement commands have no effect during a scene.  Pause and focus loss hold its countdown, and
+muting changes only audio output.  The next level still waits through its ready countdown.
+
+The renderer replaces the maze with a scene on a black background.  It derives positions, poses, and
+mouth animation from the scene countdown, not elapsed wall time.  Large sprites scale existing
+rectangles instead of allocating more native buffers.  The score display remains visible, and paused
+frames show the usual banner.
+
+The smoke script holds its gameplay index while each scene runs.  It records all four quarters of
+each scene and adds a fifteen-frame pause.  Both native runs therefore render 2,185 frames,
+including three complete intermissions.  The [arcade rule notes](arcade-rules.md#intermissions) list
+the scene schedule and intentional differences.
 
 ## Saved high scores
 
@@ -125,9 +149,13 @@ up to 75%, 85%, 95%, and 105% of the reference speed.  Red's late-maze accelerat
 siren, but temporary tunnel slowdowns do not.  Returning eyes override frightened audio, which
 overrides the normal siren.  Once all eyes reach the house, the current warning resumes.
 
-All seventeen tracks and their looping options are created before the frame loop.  The fade duration
-uses the music file's sample rate, including when a custom asset directory supplies a different
-format.  Tracks retain their decoded audio until cleanup.
+Intermissions use one separate eight-second music loop without gameplay music or warnings.
+Completion and skipping fade it out over 80 milliseconds.  Pause holds its playback position, and
+the next ready countdown stays silent.
+
+All eighteen tracks and their looping options are created before the frame loop.  Gameplay and
+intermission tracks each supply their own sample rate for the fade duration, including with custom
+assets.  Tracks retain their decoded audio until cleanup.
 
 ## Drawing and ownership
 

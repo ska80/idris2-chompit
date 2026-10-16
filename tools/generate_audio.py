@@ -134,6 +134,31 @@ def gameplay_music():
     return [sample * 0.65 for sample in samples]
 
 
+def intermission_music():
+    """Original four-bar, eight-second comic chase tune at 120 BPM."""
+    samples = [0.0] * (8 * RATE)
+
+    def place(pitch, onset, duration, gain, voice):
+        start = round(onset * 0.5 * RATE)
+        part = music_note(pitch, duration * 0.5, gain, voice)
+        assert 0 <= start and start + len(part) <= len(samples)
+        for index, value in enumerate(part, start):
+            samples[index] += value
+
+    phrases = [
+        [(0, 72, 0.5), (0.5, 76, 0.5), (1, 79, 1), (2, 76, 0.5), (2.5, 72, 0.5), (3, 67, 0.75)],
+        [(0, 74, 0.5), (0.5, 77, 0.5), (1, 81, 1), (2, 79, 0.5), (2.5, 77, 0.5), (3, 74, 0.75)],
+        [(0, 76, 0.5), (0.5, 79, 0.5), (1, 84, 1), (2, 83, 0.5), (2.5, 79, 0.5), (3, 76, 0.75)],
+        [(0, 74, 0.5), (0.5, 71, 0.5), (1, 67, 0.5), (1.5, 74, 0.5), (2, 72, 1.5)],
+    ]
+    for bar, (phrase, root) in enumerate(zip(phrases, [48, 50, 52, 48])):
+        place(root, bar * 4, 1.5, 0.16, "bass")
+        place(root + 7, bar * 4 + 2, 1.5, 0.14, "bass")
+        for onset, pitch, duration in phrase:
+            place(pitch, bar * 4 + onset, duration, 0.30, "lead")
+    return samples
+
+
 def sounds():
     # This tune is original. It is not a transcription of the arcade melody.
     lead = [(72, 1), (79, 1), (76, 1), (81, 1), (79, 2), (74, 1), (76, 1),
@@ -145,6 +170,7 @@ def sounds():
     return {
         "title": mix(melody(lead, 0.22, 0.22), melody(bass, 0.22, 0.15)),
         "gameplay": gameplay_music(),
+        "intermission": intermission_music(),
         "begin": melody([(60, 1), (67, 1), (72, 1), (76, 1), (74, 1), (79, 1),
                           (84, 2), (79, 1), (76, 1), (72, 3), (None, 2)], 0.18),
         "chomp-low": tone(520, 0.075, 0.3, 160),

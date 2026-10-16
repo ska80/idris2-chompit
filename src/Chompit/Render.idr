@@ -232,6 +232,80 @@ menu game =
   , centered white 247 1 "ESC TO QUIT"
   ]
 
+-- Intermission pictures use the same scratch buffer as the maze sprites.
+-- Scaling changes rectangle sizes, not the number of native rectangles.
+placePicture : Double -> Double -> Double -> List Batch -> List Batch
+placePicture scale x y = map place
+  where
+    place : Batch -> Batch
+    place (Ink ink rects) = Ink ink (map (\(MkFRect u v w h) =>
+      MkFRect (floor x + u * scale) (floor y + v * scale) (w * scale) (h * scale)) rects)
+
+scenePlayer : Int -> Direction -> Double -> Double -> Double -> List Batch
+scenePlayer tick heading scale x y =
+  let beat = (tick `div` 6) `mod` 4
+      mouth = if beat == 0 then 0.05 else if beat == 2 then 0.75 else 0.35
+   in placePicture scale x y [chomper 0 0 heading mouth]
+
+chasePass : Bool -> Int -> List Batch
+chasePass patched tick =
+  let player = 244 - 1.8 * cast tick
+      ghost = player + 44
+   in scenePlayer tick West 1 player 152 ++ ghostAt tick False False False Red West ghost 152 ++
+      (if patched then [Ink white [MkFRect (floor ghost + 2) 152 4 4],
+                        Ink red [MkFRect (floor ghost + 3) 153 2 2]] else [])
+
+looseCostume : Int -> Double -> List Batch
+looseCostume tick x =
+  let y = 158 + cast ((tick `div` 8) `mod` 2)
+   in [ Ink red [MkFRect (floor x - 8) y 17 4, MkFRect (floor x - 5) (y - 3) 10 3]
+      , Ink white [MkFRect (floor x - 3) (y - 1) 4 3]
+      ]
+
+bareGhost : Int -> Double -> List Batch
+bareGhost tick x =
+  let foot = cast ((tick `div` 6) `mod` 2)
+   in [ Ink pellet (pixels x 155 (\dx, dy => dx * dx * 4 + dy * dy * 9 < 144))
+      , Ink orange [MkFRect (floor x - 5) (159 + foot) 4 3, MkFRect (floor x + 1) (160 - foot) 4 3]
+      , Ink white [MkFRect (floor x - 3) 152 2 3, MkFRect (floor x + 1) 152 2 3]
+      , Ink blue [MkFRect (floor x - 2) 153 1 2, MkFRect (floor x + 2) 153 1 2]
+      ]
+
+snagPicture : Int -> List Batch
+snagPicture tick =
+  let tug = 128 - cast (min 24 ((tick - 80) `div` 8)) - cast ((tick `div` 12) `mod` 2) * 2
+      freed = 104 - cast (max 0 (tick - 360)) * 2
+      nail = [Ink white [MkFRect 143 159 2 6, MkFRect 141 158 6 2]]
+      player = scenePlayer tick West 1 (244 - 2 * cast tick) 152
+      approach = ghostAt tick False False False Red West (288 - 2 * cast tick) 152
+      pulling = [Ink red [MkFRect (tug + 4) 155 (141 - tug) 7]] ++
+        ghostAt tick False False False Red (if tick `mod` 60 < 30 then West else East) tug 152 ++
+        (if tick < 180 then [label white 145 134 1 "!"] else [])
+      torn = ghostAt tick False False False Red (if tick < 360 then East else West) freed 152 ++
+        [Ink black [MkFRect (freed + 2) 155 6 5], Ink pellet [MkFRect (freed + 1) 159 5 3]] ++
+        looseCostume tick 141 ++
+        (if tick < 318 then [Ink white [MkFRect 136 148 2 4, MkFRect 147 150 4 2,
+                                        MkFRect 135 163 3 2]] else [])
+   in (if tick < 80 then player ++ approach
+       else if tick < 300 then player ++ pulling else torn) ++ nail
+
+intermissionPicture : Interlude -> Int -> List Batch
+intermissionPicture scene remaining =
+  let tick = max 0 (min (intermissionDuration - 1) (intermissionDuration - remaining))
+      title = case scene of Turnabout => "TURNABOUT"; Snag => "LOOSE THREAD"; Costume => "QUICK CHANGE"
+      returning : Double = -20 + 1.5 * cast (tick - 210)
+      actors : List Batch = case scene of
+        Turnabout => if tick < 180 then chasePass False tick else if tick < 210 then [] else
+          ghostAt tick True False False Red East returning 152 ++
+          scenePlayer tick East 3 (returning - 64) 139
+        Snag => snagPicture tick
+        Costume => if tick < 180 then chasePass True tick else if tick < 210 then [] else
+          looseCostume tick (returning - 25) ++
+          [Ink pellet [MkFRect (floor returning - 20) 157 15 1]] ++ bareGhost tick returning
+   in [centered white 66 1 "INTERMISSION", centered yellow 87 1 title,
+       Ink blue [MkFRect 16 164 192 1]] ++ actors ++
+      [centered white 236 1 "ENTER TO SKIP", centered pellet 250 1 "P PAUSE   M MUTE"]
+
 overlay : Game -> List Batch
 overlay game = if game.paused then banner yellow "PAUSED" else case game.phase of
   Title => menu game
@@ -241,19 +315,30 @@ overlay game = if game.paused then banner yellow "PAUSED" else case game.phase o
     Nothing => []
     Just (tile, value, _) => [label cyan (cast (tile.x * 8 - 4)) (cast (tile.y * 8 + 24)) 1 (show value)]
 
+drawGame : Display -> Game -> Bool -> IO (Either String ())
+drawGame display game muted = case game.phase of
+  Intermission scene ticks => do
+    True <- paint display (intermissionPicture scene ticks ++ hud game muted ++
+                           if game.paused then banner yellow "PAUSED" else [])
+      | False => Left <$> getError
+    pure (Right ())
+  _ => do
+    let wallColor = case game.phase of
+          Clearing ticks => if ticks `mod` 30 < 15 then white else blue
+          _ => blue
+    let Just layer = find (\layer => layer.layoutId == game.maze.layoutId) display.walls
+      | Nothing => pure (Left "The maze wall buffer is missing. Restart Chompit.")
+    True <- color display.renderer wallColor | False => Left <$> getError
+    True <- fillRects display.renderer layer.buffer layer.count | False => Left <$> getError
+    True <- paint display (foodPicture game ++ actorsPicture game ++ hud game muted ++ overlay game)
+      | False => Left <$> getError
+    pure (Right ())
+
 export
 render : Display -> Game -> Bool -> IO (Either String ())
 render display game muted = do
   True <- color display.renderer black | False => Left <$> getError
   True <- clear display.renderer | False => Left <$> getError
-  let wallColor = case game.phase of
-        Clearing ticks => if ticks `mod` 30 < 15 then white else blue
-        _ => blue
-  let Just layer = find (\layer => layer.layoutId == game.maze.layoutId) display.walls
-    | Nothing => pure (Left "The maze wall buffer is missing. Restart Chompit.")
-  True <- color display.renderer wallColor | False => Left <$> getError
-  True <- fillRects display.renderer layer.buffer layer.count | False => Left <$> getError
-  True <- paint display (foodPicture game ++ actorsPicture game ++ hud game muted ++ overlay game)
-    | False => Left <$> getError
+  Right () <- drawGame display game muted | Left err => pure (Left err)
   True <- present display.renderer | False => Left <$> getError
   pure (Right ())

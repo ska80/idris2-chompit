@@ -1,6 +1,7 @@
 module Main
 
 import Arcade
+import Intermissions
 import Chompit.Types
 import Chompit.Maze
 import Chompit.Game
@@ -24,6 +25,11 @@ import System
 advance : Nat -> Game -> Game
 advance Z game = game
 advance (S n) game = advance n (step game)
+
+finishScene : Game -> Game
+finishScene game = case game.phase of
+  Intermission _ ticks => advance (cast (max 0 ticks)) game
+  _ => game
 
 playing : Game
 playing = { phase := Playing, ghosts := [] } newGame
@@ -297,7 +303,7 @@ levelTransitionTests number =
   let before = lastPellet number False
       cleared = step before
       flash = advance 119 cleared
-      loaded = step flash
+      loaded = finishScene (step flash)
       started = advance 120 loaded
       expected = buildMaze (number + 1)
       power = step (lastPellet number True)
@@ -328,7 +334,7 @@ levelTransitionTests number =
          isPlaying started && samePosition started.player loaded.player && started.remaining == loaded.remaining)
       , (label ++ "pause delays automatic progression",
          paused.paused && isClearing paused && paused.level == number &&
-         (advance 120 (command Pause paused)).level == number + 1)
+         (finishScene (advance 120 (command Pause paused))).level == number + 1)
       , (label ++ "death preserves the current maze and collected pellets",
          isReady respawn && respawn.level == number && sameMaze respawn.maze collected.maze &&
          respawn.remaining == collected.remaining && Prelude.toList respawn.dots == Prelude.toList collected.dots &&
@@ -477,7 +483,7 @@ runTests ((name, passed) :: rest) = do
 runSuite : IO ()
 runSuite = do
   let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++
-              levelTests ++ inputTests ++ audioTests ++ bonusTests ++ highScoreTests ++ arcadeTests
+              levelTests ++ inputTests ++ audioTests ++ bonusTests ++ highScoreTests ++ arcadeTests ++ intermissionTests
   runTests tests
   putStrLn (show (length tests) ++ " Chompit tests passed.")
 

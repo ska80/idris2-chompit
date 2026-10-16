@@ -35,6 +35,16 @@ def test_gameplay_music(bank):
     return 20 * math.log10(rms(bank["siren"]) / music_rms)
 
 
+def test_intermission_music(bank):
+    music = bank["intermission"]
+    assert len(music) == 8 * RATE, "The intermission loop must match the eight-second scenes."
+    assert rms(bank["gameplay"]) < rms(music) < 0.15, "Keep the tune audible without overpowering effects."
+    assert music[0] == music[-1] == 0.0, "The intermission loop must join at zero amplitude."
+    assert max(abs(b - a) for a, b in zip(music, music[1:])) < 0.10
+    for start in range(0, len(music), RATE // 2):
+        assert rms(music[start:start + RATE // 2]) > 0.001, "The intermission tune has an unexpected silent gap."
+
+
 def test_warning_loops(bank):
     names = ["siren", "siren-fast", "siren-faster", "siren-fastest"]
     assert [len(bank[name]) for name in names] == [22050, 17640, 14700, 11025]
@@ -52,9 +62,10 @@ def main():
     bank = sounds()
     assert set(bank) == {"title", "gameplay", "begin", "chomp-low", "chomp-high", "power",
                          "eat-ghost", "death", "clear", "fruit", "extra-life", "siren", "frightened",
-                         "siren-fast", "siren-faster", "siren-fastest", "eyes"}
+                         "siren-fast", "siren-faster", "siren-fastest", "eyes", "intermission"}
     music_level = test_gameplay_music(bank)
     test_warning_loops(bank)
+    test_intermission_music(bank)
     with tempfile.TemporaryDirectory(prefix="chompit-audio-") as directory:
         output = Path(directory)
         generate(output)
@@ -71,6 +82,7 @@ def main():
                 assert abs(pcm[0]) < 100 and abs(pcm[-1]) < 100, name
     print(f"Audio tests passed: {len(bank)} reproducible WAV files, valid format, no clipping, quiet endpoints.")
     print(f"Gameplay music: 32-second loop, smooth boundary, {music_level:.1f} dB below the siren (RMS).")
+    print("Intermission music: eight-second loop, smooth boundary, audible signal throughout each bar.")
 
 
 if __name__ == "__main__":

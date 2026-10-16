@@ -17,7 +17,7 @@ record SoundBank where
   mixer : Mixer DeviceOutput
   tracks : List (String, Track)
   looping : PlayOptions
-  musicFadeFrames : Bits64
+  musicFadeFrames, intermissionFadeFrames : Bits64
 
 withTracks : Mixer DeviceOutput -> String -> List String ->
              (List (String, Track) -> IO (Either String a)) -> IO (Either String a)
@@ -48,14 +48,17 @@ withSounds : String -> (SoundBank -> IO (Either String a)) -> IO (Either String 
 withSounds directory action = withMixerLibrary $ withMixer $ \mixer =>
   withTracks mixer directory ["title", "gameplay", "begin", "chomp-low", "chomp-high", "power", "eat-ghost",
     "death", "clear", "fruit", "extra-life", "siren", "siren-fast", "siren-faster", "siren-fastest",
-    "frightened", "eyes"] $ \tracks =>
+    "frightened", "eyes", "intermission"] $ \tracks =>
       withPlayOptions $ \looping => do
         True <- setMixerGain mixer 0.65 | False => Left <$> getError
         True <- setPlayLoops looping LoopForever | False => Left <$> getError
         let Just music = findTrack "gameplay" tracks
           | Nothing => pure (Left "The gameplay music track is missing. Rebuild Chompit.")
+        let Just intermission = findTrack "intermission" tracks
+          | Nothing => pure (Left "The intermission music track is missing. Rebuild Chompit.")
         Right fadeFrames <- trackMSToFrames music 80 | Left err => pure (Left err)
-        action (MkSoundBank mixer tracks looping fadeFrames)
+        Right sceneFadeFrames <- trackMSToFrames intermission 80 | Left err => pure (Left err)
+        action (MkSoundBank mixer tracks looping fadeFrames sceneFadeFrames)
 
 play : SoundBank -> String -> Bool -> IO Bool
 play bank name loop = case findTrack name bank.tracks of
@@ -77,6 +80,7 @@ ambientLoops : Game -> List String
 ambientLoops game = case game.phase of
   Title => ["title"]
   Playing => ["gameplay", warningLoop game]
+  Intermission _ _ => ["intermission"]
   _ => []
 
 -- Loops to stop, then loops to start. Keep shared tracks running so that
@@ -99,7 +103,9 @@ stopLoops : SoundBank -> List String -> IO Bool
 stopLoops bank [] = pure True
 stopLoops bank (name :: rest) = do
   let Just track = findTrack name bank.tracks | Nothing => pure False
-  True <- stopTrack track (if name == "gameplay" then bank.musicFadeFrames else 0)
+  let fade = if name == "gameplay" then bank.musicFadeFrames
+             else if name == "intermission" then bank.intermissionFadeFrames else 0
+  True <- stopTrack track fade
     | False => pure False
   stopLoops bank rest
 

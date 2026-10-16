@@ -116,6 +116,22 @@ In the four original layouts, this rule applies only where both horizontal exits
 cannot become a dead end because of the restriction.  Tests cover every valid incoming direction at
 every passage tile in all five layouts.
 
+## Intermissions
+
+Intermissions are short animations between levels.  Three arcade-inspired scenes follow this
+schedule.  Each lasts eight seconds, with the completed round held unchanged in memory.
+
+| Completed level | Scene | Action |
+| --- | --- | --- |
+| 2 | Turnabout | A giant player chases the frightened red ghost back across the screen |
+| 5 | Loose Thread | Red catches its costume on a nail and tears it free |
+| 9, 13, 17 | Quick Change | Red returns without its costume and drags it away |
+
+The scenes use original pixel art, motion, and music rather than copies of the arcade presentation.
+Their timing and controls are intentional differences.  Enter or Space skips an unpaused scene, P
+pauses it, and M mutes it.  The next level loads after completion or skipping, with score and lives
+preserved.  No intermissions occur after level 17.
+
 ## Remaining differences
 
 Chompit deliberately keeps several simpler rules and presentation choices:
@@ -126,7 +142,7 @@ Chompit deliberately keeps several simpler rules and presentation choices:
 - Waiting ghosts remain still, and house exits and returning eyes use fixed speeds.
 - Frightened choices use Chompit's own repeatable random sequence, reset after death or a new level.
 - Frightened warning flashes use a simple timer rather than the level-specific flash counts.
-- Fruit lasts a fixed ten seconds, and animated intermissions remain unimplemented.
+- Fruit lasts a fixed ten seconds.
 - Five layouts repeat beyond level 256 without the arcade game's split-screen failure.
 
 Original graphics, synthesized audio, gameplay music, and saved high scores are also intentional
