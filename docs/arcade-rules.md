@@ -1,14 +1,15 @@
 # Arcade rules
 
-The speed tables, ghost release rules, mode schedules, and frightened flash counts follow Jamey
-Pittman's [The Pac-Man Dossier](https://pacman.holenet.info/).  The reference sections are Chapter
-2, Blinky in Chapter 4, and Table A.1.  Chompit uses the normal difficulty table.  Pellet counts
-include ordinary dots and power pellets.
+The speed tables, ghost release rules, mode schedules, frightened flash counts, and player corner
+limits follow Jamey Pittman's [The Pac-Man Dossier](https://pacman.holenet.info/).  The reference
+sections are Chapter 2, Blinky in Chapter 4, and Table A.1.  Chompit uses the normal difficulty
+table.  Pellet counts include ordinary dots and power pellets.
 
 `Chompit.Game` applies these rules without SDL or file access.  `test/src/Arcade.idr` tests their
 boundaries, including later levels and recovery after death.  `test/src/GhostTiming.idr` tests
 delayed reversals and warning colors.  `test/src/House.idr` tests house paths, position continuity,
-and revival.  This is a rule model, not an emulator of the original hardware.
+and revival.  `test/src/Cornering.idr` tests player turns, diagonal paths, and collisions in every
+layout.  This is a rule model, not an emulator of the original hardware.
 
 ## Movement speeds
 
@@ -31,6 +32,37 @@ corner.  Movement uses units of 1/256 tile at 60 updates per second.  `speedStep
 fractional movement over 99 updates instead of rounding every update to the same integer.  At a
 constant speed, every uninterrupted 99-update interval covers the same distance.  This preserves the
 average reference speed without copying the arcade machine's pixel movement pattern.
+
+## Player cornering
+
+A pre-turn starts before a junction's center.  A post-turn starts after it.  The limits follow the
+[cornering section](https://pacman.holenet.info/#CH2_Cornering) and its directional pixel diagram.
+Both limits include their boundary position.
+
+| Incoming direction | Early limit in pixels | Late limit in pixels |
+| --- | --- | --- |
+| Right (east) | 3 | 4 |
+| Left (west) | 4 | 3 |
+| Down (south) | 4 | 3 |
+| Up (north) | 3 | 4 |
+
+A queued turn starts at the early limit.  Movement left in the update continues along the diagonal.
+The player faces the new direction without a position jump.  Ghosts still turn at tile centers.
+
+The centerline runs through the middle of a corridor.  During a turn, both axes use the scheduled
+movement distance until the player reaches the new centerline.  Early turns drift forward toward
+that line, while late turns drift back toward it.  Remaining movement follows the new centerline.
+An earliest possible pre-turn gains three or four pixels along the exit.
+
+Starting a corner selects the junction tile for pellet collection.  Pellet stalls, pause, and
+capture freezes hold both coordinates.  Drawing, ghost collisions, and fruit pickup use the full
+position.  Blocked exits stay blocked, including the ghost house door.
+
+A perpendicular turn changes direction by 90 degrees.  Chompit finishes the current diagonal before
+accepting another such turn.  Reversals remain immediate and retain the correction toward the
+centerline.  If a reversal meets a wall, the player finishes that correction without entering the
+wall.  These input rules and fractional distances are intentional differences from pixel-step
+emulation.
 
 ## Scatter and chase
 
@@ -191,7 +223,7 @@ preserved.  No intermissions occur after level 17.
 
 Chompit deliberately keeps several simpler rules and presentation choices:
 
-- Turns occur at tile centers, without the arcade player's early cornering.
+- The player finishes a diagonal before starting another perpendicular turn.
 - Ghosts choose junction exits on arrival instead of looking one tile ahead.
 - Collisions use distance between actors rather than tile comparisons.
 - Frightened choices use Chompit's own repeatable random sequence, reset after death or a new level.

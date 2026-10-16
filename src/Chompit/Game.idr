@@ -35,7 +35,8 @@ freshCounters = MkReleaseCounters 0 0 0 Nothing 0 False
 
 export
 actorPosition : Actor -> Tile
-actorPosition actor = plus (scaled 256 actor.tile) (scaled actor.progress (delta actor.heading))
+actorPosition actor = plus actor.offset
+  (plus (scaled 256 actor.tile) (scaled actor.progress (delta actor.heading)))
 
 export
 ghostPosition : Ghost -> Tile
@@ -131,7 +132,8 @@ export
 reverseActor : Actor -> Actor
 reverseActor actor = if actor.progress == 0
   then { heading := opposite actor.heading } actor
-  else MkActor (neighbor actor.tile actor.heading) (opposite actor.heading) (256 - actor.progress)
+  else { offset := actor.offset }
+    (MkActor (neighbor actor.tile actor.heading) (opposite actor.heading) (256 - actor.progress))
 
 -- Multiple requests before the next center share one reversal.
 export
@@ -146,7 +148,8 @@ requestReverse ghost = case ghost.state of
 export
 command : Command -> Game -> Game
 command (Turn direction) game =
-  let actor = if direction == opposite game.player.heading && game.player.progress > 0
+  let actor = if direction == opposite game.player.heading &&
+                 (game.player.progress > 0 || game.player.offset /= At 0 0)
                  then reverseActor game.player else game.player
    in if game.paused || isIntermission game then game else { wanted := direction, player := actor } game
 command Start game = case game.phase of
@@ -180,9 +183,72 @@ moveActor maze house choose speed actor =
                     then { heading := next, progress := progress - 256 } arrived
                     else arrived
 
-playerDirection : Game -> Actor -> Direction
-playerDirection game actor = if canMove game.maze False actor.tile game.wanted
-  then game.wanted else actor.heading
+-- The arcade tile center leaves three pixels on one side and four on the other.
+-- Limits use the same 1/256-tile units as actor progress: one pixel is 32 units.
+export
+preTurnLimit : Direction -> Int
+preTurnLimit North = 96
+preTurnLimit East = 96
+preTurnLimit South = 128
+preTurnLimit West = 128
+
+export
+postTurnLimit : Direction -> Int
+postTurnLimit heading = 224 - preTurnLimit heading
+
+perpendicular : Direction -> Direction -> Bool
+perpendicular first second = first /= second && first /= opposite second
+
+-- Return the junction and signed distance along the incoming direction.
+cornerAt : Maze -> Direction -> Actor -> Maybe (Tile, Int)
+cornerAt maze wanted actor =
+  if not (perpendicular wanted actor.heading) then Nothing
+  else if actor.progress <= postTurnLimit actor.heading &&
+          canMove maze False actor.tile wanted then Just (actor.tile, actor.progress)
+  else let next = neighbor actor.tile actor.heading
+        in if actor.progress >= 256 - preTurnLimit actor.heading &&
+              canMove maze False actor.tile actor.heading && canMove maze False next wanted
+             then Just (next, actor.progress - 256) else Nothing
+
+approachZero : Int -> Int -> Int
+approachZero amount value = if value < 0 then min 0 (value + amount) else max 0 (value - amount)
+
+-- A corner moves at full speed on both axes, without a position jump.
+-- Finish its alignment before accepting another perpendicular turn. Reversals
+-- still act immediately, and alignment continues if forward motion meets a wall.
+export
+movePlayer : Maze -> Direction -> Int -> Actor -> Actor
+movePlayer maze wanted speed actor =
+  let reversed = if wanted == opposite actor.heading &&
+                    (actor.progress > 0 || actor.offset /= At 0 0 ||
+                     canMove maze False actor.tile wanted)
+                   then reverseActor actor else actor
+   in walk 5 (max 0 (min 255 speed)) reversed
+  where
+    -- One update is shorter than a tile. Four movement segments and one
+    -- direction change cover a queued turn after an existing corner.
+    walk : Nat -> Int -> Actor -> Actor
+    walk Z budget actor = actor
+    walk (S fuel) budget actor =
+      if actor.offset /= At 0 0 then
+        if budget == 0 then actor else
+          let amount = min budget (max (abs actor.offset.x) (abs actor.offset.y))
+              offset = At (approachZero amount actor.offset.x) (approachZero amount actor.offset.y)
+              moved = moveActor maze False (const actor.heading) amount actor
+           in walk fuel (budget - amount) ({ offset := offset } moved)
+      else case cornerAt maze wanted actor of
+        Just (junction, displacement) =>
+          let turned : Actor = { offset := scaled displacement (delta actor.heading) }
+                (MkActor junction wanted 0)
+           in walk fuel budget turned
+        Nothing => if budget == 0 then actor else
+          let next = neighbor actor.tile actor.heading
+              untilWindow = 256 - preTurnLimit actor.heading - actor.progress
+           in if perpendicular wanted actor.heading && untilWindow > 0 && untilWindow <= budget &&
+                 canMove maze False actor.tile actor.heading && canMove maze False next wanted
+                then walk fuel (budget - untilWindow)
+                  (moveActor maze False (const actor.heading) untilWindow actor)
+                else moveActor maze False (const actor.heading) budget actor
 
 export
 isScatter : Int -> Int -> Bool
@@ -596,7 +662,7 @@ playTick game =
         ready = releaseByCounters timed
         speed = speedStep (playerSpeed ready) ready.frame
         moved = if game.stall > 0 then { stall := game.stall - 1 } ready
-                else { player := moveActor game.maze False (playerDirection ready) speed ready.player } ready
+                else { player := movePlayer game.maze ready.wanted speed ready.player } ready
         ate = releaseIdle (releaseByCounters (consume moved))
         advanced = { ghosts := map (moveGhost ate) ate.ghosts } ate
         hit = collisions advanced

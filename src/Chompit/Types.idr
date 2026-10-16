@@ -59,6 +59,9 @@ record Actor where
   heading : Direction
   -- Distance from this tile's center toward the next center, in 1/256 tiles.
   progress : Int
+  -- Player corners carry a perpendicular displacement until the track is centered.
+  -- Ordinary actors keep zero displacement without an extra constructor argument.
+  {default (At 0 0) offset : Tile}
 
 public export
 data Identity = Red | Pink | Cyan | Orange

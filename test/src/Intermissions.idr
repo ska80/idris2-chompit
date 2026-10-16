@@ -21,7 +21,7 @@ cleared level =
    in { maze := maze, level := level, dots := empty, powers := empty, remaining := 0,
         eaten := pelletCount maze, phase := Clearing 1,
         score := 15000, highScore := 20000, lives := 2, extraLife := True,
-        player := MkActor (At 1 1) East 72, wanted := West,
+        player := { offset := At 0 32 } (MkActor (At 1 1) East 72), wanted := West,
         ghosts := map (\g => if g.identity == Cyan then
                       { state := Entering, actor := MkActor (At 13 12) South 0,
                         housePosition := Just (At houseDoorPosition.x (12 * 256)) } g
@@ -39,7 +39,7 @@ sameState Entering Entering = True
 sameState _ _ = False
 
 sameActor : Actor -> Actor -> Bool
-sameActor a b = a.tile == b.tile && a.heading == b.heading && a.progress == b.progress
+sameActor a b = a.tile == b.tile && a.heading == b.heading && a.progress == b.progress && a.offset == b.offset
 
 sameGhost : Ghost -> Ghost -> Bool
 sameGhost a b = a.identity == b.identity && sameActor a.actor b.actor &&
@@ -96,7 +96,7 @@ scheduledScene (level, scene) =
          Prelude.toList loaded.powers == Prelude.toList expected.energizers &&
          loaded.eaten == 0 && loaded.modeTicks == 0 && loaded.stall == 0 && loaded.freeze == 0 &&
          loaded.fruitTime == 0 && loaded.fruitStage == 0 && isNothing loaded.popup &&
-         loaded.player.tile == At 13 23 && loaded.player.progress == 0 &&
+         loaded.player.tile == At 13 23 && loaded.player.progress == 0 && loaded.player.offset == At 0 0 &&
          sameCounters loaded.release newGame.release && loaded.seed == 42)
       , (label ++ "resumes play after the normal ready countdown", isPlaying (advance 120 loaded))
       , (label ++ "the schedule uses difficulty, not layout identity", intermissionFor level == Just scene)

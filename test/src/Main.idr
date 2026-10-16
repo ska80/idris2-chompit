@@ -1,6 +1,7 @@
 module Main
 
 import Arcade
+import Cornering
 import GhostTiming
 import House
 import Intermissions
@@ -86,7 +87,7 @@ validActor maze house actor = walkable maze house actor.tile &&
 validGame : Game -> Bool
 validGame game = game.maze.layoutId == layoutNumber game.level &&
   validActor game.maze False game.player &&
-  all (\ghost => validActor game.maze True ghost.actor) game.ghosts &&
+  all (\ghost => validActor game.maze True ghost.actor && ghost.actor.offset == At 0 0) game.ghosts &&
   game.remaining == cast (length (Prelude.toList game.dots) + length (Prelude.toList game.powers))
 
 walkTest : Nat -> Game -> Bool
@@ -489,7 +490,7 @@ runSuite : IO ()
 runSuite = do
   let tests = mazeTests ++ movementTests ++ ghostTests ++ scoreTests ++ stateTests ++
               levelTests ++ inputTests ++ audioTests ++ bonusTests ++ highScoreTests ++
-              arcadeTests ++ ghostTimingTests ++ houseTests ++ intermissionTests
+              arcadeTests ++ ghostTimingTests ++ houseTests ++ corneringTests ++ intermissionTests
   runTests tests
   putStrLn (show (length tests) ++ " Chompit tests passed.")
 

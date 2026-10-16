@@ -22,6 +22,7 @@ terminate.  This does not prove that the game rules match the arcade machine.
 | `test/src/Arcade.idr` | Arcade speed tables, release counters, mode schedules, and turn restrictions |
 | `test/src/GhostTiming.idr` | Delayed reversals, movement remainders, and frightened flash schedules |
 | `test/src/House.idr` | House pacing, centered paths, revival, and returning-eyes audio |
+| `test/src/Cornering.idr` | Early and late player turns, diagonal geometry, controls, and collisions |
 | `test/src/Intermissions.idr` | Scene timing, frozen round state, controls, and music transitions |
 | `tools/generate_audio.py` | Deterministic synthesis of eighteen WAV files |
 | `test/src/test_audio.py` | Audio format, signal level, repeat boundaries, and reproducibility tests |
@@ -34,11 +35,11 @@ A fixed update advances the simulation by 1/60 second.  The main loop accumulate
 permits at most six updates per rendered frame.  It discards time beyond 100 milliseconds after a
 stall.  Paused frames discard accumulated time, so resuming does not trigger delayed movement.
 
-An actor stores a tile, a direction, and progress toward the next tile.  Progress uses integer units
-of 1/256 tile.  An update cannot move an actor by a whole tile.  At each tile center, the player
-tries the queued direction before the current direction.  An immediate player reversal changes its
-tile and progress without changing its position.  Tunnel rendering draws copies at both edges, and
-collision distances wrap across those edges.
+An actor stores a tile, a direction, progress toward the next tile, and `offset` for player corners.
+Progress and `offset` use integer units of 1/256 tile.  An update cannot move an actor by a whole
+tile.  An immediate player reversal changes its tile and progress but preserves `offset` and its
+position.  Tunnel rendering draws copies at both edges, and collision distances wrap across those
+edges.
 
 Ghosts choose from legal directions in up, left, down, right order.  Equal target distances keep
 that order.  Normal ghosts avoid reversing except at a dead end or after a mode change.  Frightened
@@ -83,6 +84,35 @@ color from the remaining protection time, with fourteen updates per color.  The 
 ends with protection, and short durations truncate the first white interval.  Capture freezes hold
 the color even while the global frame count advances.  Eyes and revived bodies never flash under the
 current power pellet.
+
+## Player cornering
+
+The centerline runs through the middle of a corridor.  `Actor.offset` stores a sideways distance
+from that line.  `MkActor` defaults this field to zero, so ordinary actors keep their existing
+positions.  Only player turns change it.  `actorPosition` includes this distance for rendering,
+ghost collisions, and fruit pickup.
+
+`movePlayer` handles the queued direction separately from ghost movement.  `preTurnLimit` and
+`postTurnLimit` give the directional three- or four-pixel limits.  A turn selects the junction tile,
+changes heading, and stores the old physical displacement in `offset`.  The position does not jump.
+The junction pellet can then be collected even though an early turn never crosses its center.
+
+Each unit of movement advances along the new heading and reduces the sideways distance by one unit.
+Once that distance reaches zero, remaining movement follows the new corridor.  A blocked exit cannot
+start a turn.  Reversals preserve the sideways distance and continue reducing it, even if forward
+movement reaches a wall.
+
+A perpendicular turn changes direction by 90 degrees.  A second such turn waits for the current
+diagonal to align.  Movement left in the update can enter another turn immediately after alignment.
+The walker limits requests to 255 units and uses at most five movement or direction-change stages.
+This bound preserves totality without discarding normal movement at a turn boundary.
+
+Pellet stalls, pause, ready countdowns, capture freezes, and intermissions hold the player's
+physical position.  Pause and intermissions also ignore direction commands.  Death, retry, and new
+levels restore zero `offset`.  Tests compare complete movement updates with one-unit steps and
+exercise every legal junction in all layouts.  The [arcade rule
+notes](arcade-rules.md#player-cornering) describe the directional limits and intentional
+differences.
 
 ## House movement
 
@@ -149,10 +179,11 @@ rectangles instead of allocating more native buffers.  The score display remains
 frames show the usual banner.
 
 The smoke script holds its gameplay index while each scene runs.  It records all four quarters of
-each scene and adds a fifteen-frame pause.  Both native runs render 2,385 frames, including three
-complete intermissions.  The final segment follows all four ghosts through entry, revival, and
-departure, with the side ghosts released on separate updates.  The [arcade rule
-notes](arcade-rules.md#intermissions) list the scene schedule and intentional differences.
+each scene and adds a fifteen-frame pause.  Both native runs render 2,505 frames, including three
+complete intermissions.  Later segments follow all four ghosts through entry, revival, and
+departure.  They also draw early and late player turns on both axes, with pause and reversal during
+a diagonal.  The [arcade rule notes](arcade-rules.md#intermissions) list the scene schedule and
+intentional differences.
 
 ## Saved high scores
 

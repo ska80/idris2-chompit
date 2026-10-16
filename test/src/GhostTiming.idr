@@ -23,7 +23,7 @@ hunter : Actor -> Ghost
 hunter actor = MkGhost Red actor Hunting False False Nothing
 
 sameActor : Actor -> Actor -> Bool
-sameActor a b = a.tile == b.tile && a.heading == b.heading && a.progress == b.progress
+sameActor a b = a.tile == b.tile && a.heading == b.heading && a.progress == b.progress && a.offset == b.offset
 
 validActor : Maze -> Actor -> Bool
 validActor maze actor = walkable maze False actor.tile && actor.progress >= 0 && actor.progress < 256 &&

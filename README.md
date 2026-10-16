@@ -76,9 +76,12 @@ but preserves the bundled sounds and leaves the sibling library unchanged.
 | M | Mute or restore sound |
 | Escape or Q | Quit |
 
-Movement continues without a held key.  Turns wait until the next legal junction, and reversals work
-between junctions.  The game pauses when its window loses keyboard focus.  Press P to resume after
-you return.  The resizable window preserves the 224 × 288 display proportions.
+Movement continues without a held key.  Queue a turn before a junction to cut the corner along a
+diagonal path.  You can also turn shortly after passing the center.  Reversals work between
+junctions.
+
+The game pauses when its window loses keyboard focus.  Press P to resume after you return.  The
+resizable window preserves the 224 × 288 display proportions.
 
 A quiet music loop accompanies active play.  It fades out after death or level completion.  P pauses
 the music with the game, and M mutes music and effects together.  Four siren variants follow the red
@@ -158,6 +161,7 @@ automatic level changes, bonus icons, and audio transitions.  `test/src/Arcade.i
 speed-table, release-counter, mode-boundary, and restricted-turn tests.  `test/src/GhostTiming.idr`
 tests delayed reversals across all layouts and each level's complete warning sequence.
 `test/src/House.idr` tests house paths, movement boundaries, revival, and returning-eyes audio.
+`test/src/Cornering.idr` tests early and late turns, diagonal paths, collisions, and movement limits.
 `test/src/Intermissions.idr` tests scene timing, frozen game state, controls, and music transitions.
 
 Audio tests compare bundled WAV files with regenerated audio.  They also test warning-loop speeds,
@@ -165,10 +169,11 @@ the music level, and the join between repeats.  Score tests use temporary direct
 normal game through start, movement, and quit.  They do not touch your saved score.
 
 A smoke test runs a short scripted game with dummy SDL devices.  The audio and silent runs each draw
-2,385 frames through level thirteen, covering all layouts, bonus icons, warning loops, and retry.
+2,505 frames through level thirteen, covering all layouts, bonus icons, warning loops, and retry.
 They exercise delayed reversals and warning colors, then play all three intermissions to completion.
-Each scene includes pause and mute.  The final segment follows all four ghosts through house entry,
-revival, and departure.
+Each scene includes pause and mute.  Later segments follow all four ghosts through house entry,
+revival, and departure.  They also draw early and late player turns on both axes, including pause
+and reversal during a diagonal.
 
 Smoke mode never reads or writes saved scores.  These runs do not assess sound quality or latency on
 speakers.  Run `make smoke` for those runs alone.
